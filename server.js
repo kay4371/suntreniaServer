@@ -107,18 +107,32 @@ res.send(`
         margin-bottom: 25px;
       }
       .btn {
-        background: #22c55e;
-        color: white;
-        padding: 10px 20px;
+        width: 200px;
+        padding: 12px;
         border-radius: 25px;
         border: none;
         cursor: pointer;
         font-size: 0.95rem;
-        margin: 8px;
-        transition: background 0.3s ease;
+        margin: 8px auto;
+        display: block;
+        transition: transform 0.2s ease, background 0.3s ease;
       }
       .btn:hover {
+        transform: scale(1.05);
+      }
+      .btn-green {
+        background: #22c55e;
+        color: white;
+      }
+      .btn-green:hover {
         background: #16a34a;
+      }
+      .btn-red {
+        background: #ef4444;
+        color: white;
+      }
+      .btn-red:hover {
+        background: #dc2626;
       }
       .footer {
         margin-top: 30px;
@@ -144,15 +158,15 @@ res.send(`
         <div class="tick">✔</div>
       </div>
       <h1>Good Choice</h1>
-      <p>Your application is moving forward.</p>
-      <button class="btn" onclick="alert('Auto-Apply enabled ✅. We’ll handle future applications for you ✨')">
+      <p>We will now proceed with your application.</p>
+      <button class="btn btn-green" onclick="alert('Auto-Apply enabled ✅. We’ll handle future applications for you ✨')">
         Enable Auto-Apply (next time)
       </button>
-      <button class="btn" onclick="window.close()">
+      <button class="btn btn-red" onclick="window.close()">
         Exit
       </button>
       <div class="footer">
-        Powered by <strong>IntelliJob</strong> from <strong>Suntrenia</strong>
+        IntelliJob from <strong>Suntrenia</strong>
       </div>
     </div>
     <script>
@@ -164,6 +178,7 @@ res.send(`
   </body>
   </html>
 `);
+
 
   } catch (err) {
     console.error('❌ MongoDB Error:', err);
