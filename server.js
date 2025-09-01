@@ -27,22 +27,20 @@ app.get('/handle-response', async (req, res) => {
   console.log('📩 Received:', { response, emailId, jobId });
  
   try {
-   
     const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect()
+    await client.connect();
     
     const db = client.db('olukayode_sage');
-    await db.collection('user_application_response').insertOne({
+    // ✅ Store the insert result in a variable
+    const insertResult = await db.collection('user_application_response').insertOne({
       response,
       emailId,
       jobId,
       timestamp: new Date()
     });
-    await client.close();
-
-
+    
     console.log('Insert result:', insertResult);
-    console.log("Checking for responses now...")
+    console.log("Checking for responses now...");
     
     // [ADDED] Check for responses - only if function exists
     try {
@@ -57,11 +55,103 @@ app.get('/handle-response', async (req, res) => {
       console.error('Error in checkForResponses:', error);
     }
 
+    await client.close();
 
     res.send(`
-      <h1>✅ Success!</h1>
-      <p>Recorded: ${response} (job ${jobId})</p>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Success</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f4fdf6;
+            margin: 0;
+          }
+          .container {
+            text-align: center;
+            animation: fadeIn 1s ease-in-out;
+          }
+          .circle {
+            width: 100px;
+            height: 100px;
+            background: #a3e635;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 20px;
+            animation: pop 0.6s ease forwards;
+          }
+          .tick {
+            font-size: 48px;
+            color: white;
+            animation: scaleUp 0.5s ease forwards 0.5s;
+            opacity: 0;
+          }
+          h1 {
+            font-size: 1.8rem;
+            color: #166534;
+            margin-bottom: 10px;
+          }
+          p {
+            font-size: 1rem;
+            color: #4b5563;
+            margin-bottom: 20px;
+          }
+          .btn {
+            background: #22c55e;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background 0.3s ease;
+          }
+          .btn:hover {
+            background: #16a34a;
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes pop {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          @keyframes scaleUp {
+            to { transform: scale(1.1); opacity: 1; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="circle">
+            <div class="tick">✔</div>
+          </div>
+          <h1>Good Choice</h1>
+          <p>We'll now proceed with your application.</p>
+          <button class="btn" onclick="alert('Auto-Apply enabled! Next time, we'll handle it for you ✨')">
+            Enable Auto Apply
+          </button>
+        </div>
+        <script>
+          // Reveal tick after circle pops
+          setTimeout(() => {
+            document.querySelector('.tick').style.opacity = '1';
+          }, 600);
+        </script>
+      </body>
+      </html>
     `);
+
   } catch (err) {
     console.error('❌ MongoDB Error:', err);
     res.status(500).send('Database error');
