@@ -699,6 +699,9 @@ app.use((req, res, next) => {
   next();
 });
 
+console.log("📧 Email User:", process.env.EMAIL_USER);
+console.log("📧 Password length:", process.env.EMAIL_PASSWORD?.length);
+
 // SMTP Configuration
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
