@@ -960,145 +960,89 @@ app.get('/handle-response', async (req, res) => {
         timestamp: new Date().toISOString()
       });
 
-    // Send success response
-    console.log('📤 Sending HTML response to client');
-    res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Success</title>
-        <style>
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background: linear-gradient(135deg, #f4fdf6 0%, #e8f5e9 100%);
-            margin: 0;
-          }
-          .container {
-            text-align: center;
-            animation: fadeIn 1s ease-in-out;
-            max-width: 400px;
-            padding: 30px;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-          }
-          .circle {
-            width: 130px;
-            height: 130px;
-            background: #a3e635;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0 auto 25px;
-            animation: pop 0.6s ease forwards;
-            box-shadow: 0 5px 15px rgba(163, 230, 53, 0.4);
-          }
-          .tick {
-            font-size: 60px;
-            color: white;
-            animation: scaleUp 0.5s ease forwards 0.5s;
-            opacity: 0;
-          }
-          h1 {
-            font-size: 1.9rem;
-            color: #166534;
-            margin-bottom: 15px;
-          }
-          p {
-            font-size: 1.05rem;
-            color: #4b5563;
-            margin-bottom: 30px;
-            line-height: 1.5;
-          }
-          .button-row {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 25px;
-          }
-          .btn {
-            padding: 14px 25px;
-            border-radius: 30px;
-            border: none;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            min-width: 160px;
-          }
-          .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-          }
-          .btn:active {
-            transform: translateY(0);
-          }
-          .btn-green {
-            background: #22c55e;
-            color: white;
-          }
-          .btn-green:hover {
-            background: #16a34a;
-          }
-          .btn-purple {
-            background: #6b21a8;
-            color: white;
-          }
-          .btn-purple:hover {
-            background: #581c87;
-          }
-          .footer {
-            margin-top: 30px;
-            font-size: 0.85rem;
-            color: #6b7280;
-          }
-          @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          @keyframes pop {
-            0% { transform: scale(0.5); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-          }
-          @keyframes scaleUp {
-            to { transform: scale(1.1); opacity: 1; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="circle">
-            <div class="tick">✔</div>
-          </div>
-          <h1>Excellent Choice!</h1>
-          <p>We've received your response and will now proceed with your application.</p>
-          <div class="button-row">
-            <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
-              Auto-Apply
-            </button>
-            <button class="btn btn-purple" onclick="window.close()">
-              Exit
-            </button>
-          </div>
-          <div class="footer">
-            Powered by <strong>IntelliJob</strong> from Suntrenia
-          </div>
-        </div>
-        <script>
-          setTimeout(() => {
-            document.querySelector('.tick').style.opacity = '1';
-          }, 600);
-        </script>
-      </body>
-      </html>
-    `);
+// Enhanced handle-response with debugging
+app.get('/handle-response', async (req, res) => {
+  const { response, emailId, jobId, userId } = req.query;
+  
+  console.log('\n🎯 HANDLE-RESPONSE CALLED:');
+  console.log('📩 Received:', { response, emailId, jobId, userId });
+  
+  // Validate required parameters
+  if (!response || !emailId || !jobId || !userId) {
+    console.log('❌ Missing required parameters');
+    return res.status(400).json({ 
+      error: 'Missing required parameters',
+      success: false 
+    });
+  }
+
+  let client;
+ 
+  try {
+    console.log('🗄️ Connecting to MongoDB...');
+    client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    console.log('✅ Connected to MongoDB');
+    
+    const db = client.db('olukayode_sage');
+    
+    // Store the response
+    console.log('💾 Storing response in database...');
+    const insertResult = await db.collection('user_application_response').insertOne({
+      userId: userId,
+      response,
+      emailId,
+      jobId,
+      timestamp: new Date(),
+      processed: false
+    });
+    
+    console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
+    
+    // Immediate response check
+    console.log('🚀 Triggering immediate response check...');
+    try {
+      const checkResult = await checkForResponsesImmediately(userId, emailId, jobId);
+      console.log('✅ Immediate check completed:', checkResult);
+      
+      // Update the record as processed
+      await db.collection('user_application_response').updateOne(
+        { _id: insertResult.insertedId },
+        { $set: { processed: true, processedAt: new Date() } }
+      );
+      console.log('✅ Response marked as processed');
+      
+    } catch (checkError) {
+      console.error('❌ Error in immediate response check:', checkError);
+      // Don't fail the request, just log the error
+    }
+
+    // Send JSON response
+    res.status(200).json({
+      success: true,
+      action: response.toLowerCase() === "proceed" ? "approved" : "rejected",
+      jobId,
+      emailId,
+      userId,
+      recordId: insertResult.insertedId,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log('📤 JSON response sent to client');
+
+  } catch (err) {
+    console.error('❌ CRITICAL ERROR in handle-response:', err);
+    console.error('Stack trace:', err.stack);
+    
+  res.status(200).json({
+      success: true,
+      action: response.toLowerCase() === "proceed" ? "approved" : "rejected",
+      jobId,
+      emailId,
+      userId,
+      recordId: insertResult.insertedId,
+      timestamp: new Date().toISOString()
+    });
 
   } catch (err) {
     console.error('❌ CRITICAL ERROR in handle-response:', err);
