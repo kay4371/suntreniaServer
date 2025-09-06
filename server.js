@@ -897,26 +897,32 @@ app.get('/check-responses', async (req, res) => {
 });
 
 // Enhanced handle-response with debugging
+// Enhanced handle-response with debugging
 app.get('/handle-response', async (req, res) => {
   const { response, emailId, jobId, userId } = req.query;
-
+  
   console.log('\n🎯 HANDLE-RESPONSE CALLED:');
   console.log('📩 Received:', { response, emailId, jobId, userId });
-
+  
   // Validate required parameters
   if (!response || !emailId || !jobId || !userId) {
     console.log('❌ Missing required parameters');
-    return res.status(400).send('Missing required parameters');
+    return res.status(400).json({ 
+      error: 'Missing required parameters',
+      success: false 
+    });
   }
 
+  let client;
+ 
   try {
     console.log('🗄️ Connecting to MongoDB...');
-    const client = new MongoClient(process.env.MONGODB_URI);
+    client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
     console.log('✅ Connected to MongoDB');
-
+    
     const db = client.db('olukayode_sage');
-
+    
     // Store the response
     console.log('💾 Storing response in database...');
     const insertResult = await db.collection('user_application_response').insertOne({
@@ -927,83 +933,61 @@ app.get('/handle-response', async (req, res) => {
       timestamp: new Date(),
       processed: false
     });
-
+    
     console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
-
+    
     // Immediate response check
     console.log('🚀 Triggering immediate response check...');
     try {
       const checkResult = await checkForResponsesImmediately(userId, emailId, jobId);
       console.log('✅ Immediate check completed:', checkResult);
-
+      
       // Update the record as processed
       await db.collection('user_application_response').updateOne(
         { _id: insertResult.insertedId },
         { $set: { processed: true, processedAt: new Date() } }
       );
       console.log('✅ Response marked as processed');
-
+      
     } catch (checkError) {
       console.error('❌ Error in immediate response check:', checkError);
       // Don't fail the request, just log the error
     }
 
-    await client.close();
-    console.log('✅ MongoDB connection closed');
+    // Send JSON response
+    res.status(200).json({
+      success: true,
+      action: response.toLowerCase() === "proceed" ? "approved" : "rejected",
+      jobId,
+      emailId,
+      userId,
+      recordId: insertResult.insertedId,
+      timestamp: new Date().toISOString()
+    });
 
-    // Send success response
-    console.log('📤 Sending HTML response to client');
-    res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Success</title>
-        <style>/* your existing styles */</style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="circle">
-            <div class="tick">✔</div>
-          </div>
-          <h1>Excellent Choice!</h1>
-          <p>We've received your response and will now proceed with your application.</p>
-          <p><small>Response ID: ${insertResult.insertedId}</small></p>
-          <div class="button-row">
-            <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
-              Auto-Apply
-            </button>
-            <button class="btn btn-purple" onclick="window.close()">
-              Exit
-            </button>
-          </div>
-          <div class="footer">
-            Powered by <strong>IntelliJob</strong> from Suntrenia
-          </div>
-        </div>
-        <script>
-          console.log('Response processed successfully');
-          setTimeout(() => {
-            document.querySelector('.tick').style.opacity = '1';
-          }, 600);
-        </script>
-      </body>
-      </html>
-    `);
+    console.log('📤 JSON response sent to client');
 
   } catch (err) {
     console.error('❌ CRITICAL ERROR in handle-response:', err);
     console.error('Stack trace:', err.stack);
-    res.status(500).send(`
-      <html>
-        <body>
-          <h1>Server Error</h1>
-          <p>Please try again later. If the problem persists, contact support.</p>
-          <p><small>Error: ${err.message}</small></p>
-        </body>
-      </html>
-    `);
+    
+    // Return JSON error response to match client expectations
+    res.status(500).json({ 
+      error: err.message,
+      success: false,
+      timestamp: new Date().toISOString(),
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  } finally {
+    // Always close the client connection
+    if (client) {
+      try {
+        await client.close();
+        console.log('✅ MongoDB connection closed');
+      } catch (closeError) {
+        console.error('❌ Error closing MongoDB connection:', closeError);
+      }
+    }
   }
 });
 
