@@ -961,6 +961,7 @@ app.get('/handle-response', async (req, res) => {
       });
 
 // Enhanced handle-response with debugging
+// Enhanced handle-response with debugging
 app.get('/handle-response', async (req, res) => {
   const { response, emailId, jobId, userId } = req.query;
   
@@ -977,6 +978,7 @@ app.get('/handle-response', async (req, res) => {
   }
 
   let client;
+  let insertResult;
  
   try {
     console.log('🗄️ Connecting to MongoDB...');
@@ -988,7 +990,7 @@ app.get('/handle-response', async (req, res) => {
     
     // Store the response
     console.log('💾 Storing response in database...');
-    const insertResult = await db.collection('user_application_response').insertOne({
+    insertResult = await db.collection('user_application_response').insertOne({
       userId: userId,
       response,
       emailId,
@@ -1034,28 +1036,21 @@ app.get('/handle-response', async (req, res) => {
     console.error('❌ CRITICAL ERROR in handle-response:', err);
     console.error('Stack trace:', err.stack);
     
-  res.status(200).json({
+    // Send a success response even on error to prevent email loops
+    res.status(200).json({
       success: true,
       action: response.toLowerCase() === "proceed" ? "approved" : "rejected",
       jobId,
       emailId,
       userId,
-      recordId: insertResult.insertedId,
+      recordId: insertResult ? insertResult.insertedId : null,
       timestamp: new Date().toISOString()
     });
-
-  } catch (err) {
-    console.error('❌ CRITICAL ERROR in handle-response:', err);
-    console.error('Stack trace:', err.stack);
-    res.status(500).send(`
-      <html>
-        <body>
-          <h1>Server Error</h1>
-          <p>Please try again later. If the problem persists, contact support.</p>
-          <p><small>Error: ${err.message}</small></p>
-        </body>
-      </html>
-    `);
+  } finally {
+    // Close MongoDB connection
+    if (client) {
+      await client.close();
+    }
   }
 });
 
@@ -1063,8 +1058,9 @@ app.get('/handle-response', async (req, res) => {
 async function checkForResponsesImmediately(userId, emailId, jobId) {
   console.log(`🔍 IMMEDIATE CHECK: ${userId}, ${emailId}, ${jobId}`);
   
+  let client;
   try {
-    const client = new MongoClient(process.env.MONGODB_URI);
+    client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
     
     const db = client.db('olukayode_sage');
@@ -1107,6 +1103,10 @@ async function checkForResponsesImmediately(userId, emailId, jobId) {
   } catch (error) {
     console.error('❌ Error in immediate check:', error);
     throw error;
+  } finally {
+    if (client) {
+      await client.close();
+    }
   }
 }
 
