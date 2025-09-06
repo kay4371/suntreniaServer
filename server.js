@@ -23,9 +23,9 @@
 // app.get('/handle-response', async (req, res) => {
 //   const { response, emailId, jobId } = req.query;
 //   console.log('📩 Received:', { response, emailId, jobId });
- 
+
 //   try {
-   
+
 //     const client = new MongoClient(process.env.MONGODB_URI);
 //     await client.connect();
 //     const db = client.db('suntrenia');
@@ -37,7 +37,7 @@
 //     });
 //     await client.close();
 
-    
+
 //     res.send(`
 //       <h1>✅ Success!</h1>
 //       <p>Recorded: ${response} (job ${jobId})</p>
@@ -89,11 +89,11 @@
 // app.get('/handle-response', async (req, res) => {
 //   const { response, emailId, jobId } = req.query;
 //   console.log('📩 Received:', { response, emailId, jobId });
- 
+
 //   try {
 //     const client = new MongoClient(process.env.MONGODB_URI);
 //     await client.connect();
-    
+
 //     const db = client.db('olukayode_sage');
 //     // ✅ Store the insert result in a variable
 //     const insertResult = await db.collection('user_application_response').insertOne({
@@ -102,10 +102,10 @@
 //       jobId,
 //       timestamp: new Date()
 //     });
-    
+
 //     console.log('Insert result:', insertResult);
 //     console.log("Checking for responses now...");
-    
+
 //     // [ADDED] Check for responses - only if function exists
 //     try {
 //       if (typeof checkForResponses === 'function') {
@@ -306,75 +306,75 @@
 // // Real checkForResponses function (now as an endpoint)
 // app.get('/check-responses', async (req, res) => {
 //   const { userId, emailId, jobId } = req.query;
-  
+
 //   console.log('🔍 Checking responses with:', { userId, emailId, jobId });
-  
+
 //   if (!userId) {
 //     return res.status(400).json({ error: 'userId is required' });
 //   }
-  
+
 //   let connection;
 //   let mongoClient;
 
 //   try {
 //     console.log(`Starting response check for user: ${userId}`);
-    
+
 //     // Connect to IMAP server
 //     connection = await imaps.connect(imapConfig);
 //     await connection.openBox('INBOX');
-    
+
 //     // Search for unread emails
 //     const searchCriteria = ['UNSEEN'];
 //     const fetchOptions = { bodies: ['HEADER', 'TEXT'], markSeen: true };
-    
+
 //     const messages = await connection.search(searchCriteria, fetchOptions);
-    
+
 //     if (messages.length === 0) {
 //       console.log('No new responses found.');
 //       await connection.end();
 //       return res.json({ success: true, responsesFound: 0, message: 'No new responses' });
 //     }
-    
+
 //     // Connect to MongoDB
 //     mongoClient = new MongoClient(process.env.MONGODB_URI);
 //     await mongoClient.connect();
 //     const db = mongoClient.db('olukayode_sage');
 //     const collection = db.collection('user_application_response');
-    
+
 //     let processedCount = 0;
 //     let positiveResponses = 0;
 //     let negativeResponses = 0;
-    
+
 //     // Process each email
 //     for (const message of messages) {
 //       const textPart = message.parts.find(part => part.which === 'TEXT');
 //       const id = message.attributes.uid;
 //       const rawMessage = textPart?.body;
-      
+
 //       if (!rawMessage) {
 //         console.log('No message body found for this email.');
 //         continue;
 //       }
-      
+
 //       // Parse the email
 //       const parsedEmail = await simpleParser(rawMessage);
 //       const from = parsedEmail.from?.text || 'Unknown sender';
 //       const subject = parsedEmail.subject || 'No subject';
 //       const textBody = parsedEmail.text || 'No message body';
-      
+
 //       console.log(`New response from: ${from}`);
 //       console.log(`Subject: ${subject}`);
-      
+
 //       // Extract user response from email
 //       let normalizedTextBody = textBody.toLowerCase();
 //       normalizedTextBody = normalizedTextBody.replace(/<\/?[^>]+(>|$)/g, "");
 //       normalizedTextBody = normalizedTextBody.replace(/\s+/g, ' ').trim();
-      
+
 //       const quotedMessageIndex = normalizedTextBody.search(/on .* wrote:/i);
 //       let userResponse = quotedMessageIndex !== -1
 //         ? normalizedTextBody.slice(0, quotedMessageIndex).trim()
 //         : normalizedTextBody;
-      
+
 //       // Check if we have a button response in DB (if emailId and jobId provided)
 //       if (emailId && jobId) {
 //         try {
@@ -383,7 +383,7 @@
 //             jobId: jobId,
 //             emailId: emailId
 //           });
-          
+
 //           if (buttonResponseRecord && buttonResponseRecord.response) {
 //             console.log("✅ Button response retrieved from DB:", buttonResponseRecord.response);
 //             userResponse = buttonResponseRecord.response.toLowerCase();
@@ -392,11 +392,11 @@
 //           console.error('Error fetching button response from DB:', e);
 //         }
 //       }
-      
+
 //       // Determine if response is positive or negative
 //       const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
 //       const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
-      
+
 //       if (isPositive) {
 //         console.log("✅ Positive response detected:", userResponse);
 //         positiveResponses++;
@@ -413,13 +413,13 @@
 //           { $set: { status: 'rejected', respondedAt: new Date() } }
 //         );
 //       }
-      
+
 //       processedCount++;
 //     }
-    
+
 //     await connection.end();
 //     await mongoClient.close();
-    
+
 //     console.log(`Processed ${processedCount} responses`);
 //     res.json({ 
 //       success: true, 
@@ -428,17 +428,17 @@
 //       positiveResponses,
 //       negativeResponses
 //     });
-    
+
 //   } catch (error) {
 //     console.error('Error in checkForResponses:', error);
-    
+
 //     if (connection) {
 //       await connection.end();
 //     }
 //     if (mongoClient) {
 //       await mongoClient.close();
 //     }
-    
+
 //     res.status(500).json({ error: error.message });
 //   }
 // });
@@ -447,13 +447,13 @@
 // app.get('/handle-response', async (req, res) => {
 //   const { response, emailId, jobId, userId } = req.query;
 //   console.log('📩 Received:', { response, emailId, jobId, userId });
- 
+
 //   try {
 //     const client = new MongoClient(process.env.MONGODB_URI);
 //     await client.connect();
-    
+
 //     const db = client.db('olukayode_sage');
-    
+
 //     // Store the response
 //     const insertResult = await db.collection('user_application_response').insertOne({
 //       userId: userId || 'unknown',
@@ -462,9 +462,9 @@
 //       jobId,
 //       timestamp: new Date()
 //     });
-    
+
 //     console.log('Response stored in DB:', insertResult.insertedId);
-    
+
 //     // If we have all required parameters, check for responses immediately
 //     if (userId && emailId && jobId) {
 //       try {
@@ -627,25 +627,25 @@
 //   try {
 //     const client = new MongoClient(process.env.MONGODB_URI);
 //     await client.connect();
-    
+
 //     const db = client.db('olukayode_sage');
 //     const collection = db.collection('user_application_response');
-    
+
 //     // Check for button response in DB
 //     const buttonResponseRecord = await collection.findOne({
 //       userId: userId,
 //       jobId: jobId,
 //       emailId: emailId
 //     });
-    
+
 //     if (buttonResponseRecord && buttonResponseRecord.response) {
 //       console.log("✅ Button response found:", buttonResponseRecord.response);
 //       const userResponse = buttonResponseRecord.response.toLowerCase();
-      
+
 //       // Determine if response is positive or negative
 //       const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
 //       const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
-      
+
 //       if (isPositive) {
 //         console.log("✅ Positive response detected - proceeding with application");
 //         // Update application status in database
@@ -661,10 +661,10 @@
 //         );
 //       }
 //     }
-    
+
 //     await client.close();
 //     return { success: true };
-    
+
 //   } catch (error) {
 //     console.error('Error in immediate check:', error);
 //     throw error;
@@ -761,7 +761,7 @@ app.get('/', (req, res) => {
     mongodb_uri: process.env.MONGODB_URI ? 'Set' : 'Missing',
     node_env: process.env.NODE_ENV || 'development'
   };
-  
+
   res.json({
     message: '🟢 Backend is running',
     environment: envInfo,
@@ -772,40 +772,40 @@ app.get('/', (req, res) => {
 // Enhanced checkForResponses with detailed logging
 app.get('/check-responses', async (req, res) => {
   const { userId, emailId, jobId } = req.query;
-  
+
   console.log('🔍 CHECK-RESPONSES STARTED:', { userId, emailId, jobId });
-  
+
   if (!userId) {
     console.log('❌ Missing userId parameter');
     return res.status(400).json({ error: 'userId is required' });
   }
-  
+
   let connection;
   let mongoClient;
 
   try {
     console.log(`🔄 Starting response check for user: ${userId}`);
-    
+
     // Test IMAP connection first
     const imapConnected = await testImapConnection();
     if (!imapConnected) {
       throw new Error('IMAP connection failed');
     }
-    
+
     // Connect to IMAP server
     console.log('📧 Connecting to IMAP server...');
     connection = await imaps.connect(imapConfig);
     await connection.openBox('INBOX');
     console.log('✅ Connected to IMAP inbox');
-    
+
     // Search for unread emails
     const searchCriteria = ['UNSEEN'];
     const fetchOptions = { bodies: ['HEADER', 'TEXT'], markSeen: true };
-    
+
     console.log('🔎 Searching for unread emails...');
     const messages = await connection.search(searchCriteria, fetchOptions);
     console.log(`📨 Found ${messages.length} unread messages`);
-    
+
     if (messages.length === 0) {
       console.log('ℹ️ No new responses found.');
       await connection.end();
@@ -816,57 +816,57 @@ app.get('/check-responses', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     // Connect to MongoDB
     console.log('🗄️ Connecting to MongoDB...');
     mongoClient = new MongoClient(process.env.MONGODB_URI);
     await mongoClient.connect();
     console.log('✅ Connected to MongoDB');
-    
+
     const db = mongoClient.db('olukayode_sage');
     const collection = db.collection('user_application_response');
-    
+
     let processedCount = 0;
     let positiveResponses = 0;
     let negativeResponses = 0;
-    
+
     console.log(`📊 Processing ${messages.length} messages...`);
-    
+
     // Process each email
     for (const [index, message] of messages.entries()) {
       console.log(`\n📧 Processing message ${index + 1}/${messages.length}`);
-      
+
       const textPart = message.parts.find(part => part.which === 'TEXT');
       const id = message.attributes.uid;
       const rawMessage = textPart?.body;
-      
+
       if (!rawMessage) {
         console.log('⚠️ No message body found for this email.');
         continue;
       }
-      
+
       // Parse the email
       try {
         const parsedEmail = await simpleParser(rawMessage);
         const from = parsedEmail.from?.text || 'Unknown sender';
         const subject = parsedEmail.subject || 'No subject';
-        
+
         console.log(`👤 From: ${from}`);
         console.log(`📝 Subject: ${subject}`);
-        
+
         // ... rest of your existing processing code ...
-        
+
       } catch (parseError) {
         console.error('❌ Error parsing email:', parseError);
         continue;
       }
-      
+
       processedCount++;
     }
-    
+
     await connection.end();
     await mongoClient.close();
-    
+
     console.log(`✅ Processed ${processedCount} responses successfully`);
     res.json({ 
       success: true, 
@@ -876,18 +876,18 @@ app.get('/check-responses', async (req, res) => {
       negativeResponses,
       timestamp: new Date().toISOString()
     });
-    
+
   } catch (error) {
     console.error('❌ ERROR in checkForResponses:', error);
     console.error('Stack trace:', error.stack);
-    
+
     if (connection) {
       await connection.end().catch(e => console.error('Error closing IMAP:', e));
     }
     if (mongoClient) {
       await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
     }
-    
+
     res.status(500).json({ 
       error: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
@@ -899,33 +899,27 @@ app.get('/check-responses', async (req, res) => {
 // Enhanced handle-response with debugging
 app.get('/handle-response', async (req, res) => {
   const { response, emailId, jobId, userId } = req.query;
-  
+
   console.log('\n🎯 HANDLE-RESPONSE CALLED:');
   console.log('📩 Received:', { response, emailId, jobId, userId });
-  
+
   // Validate required parameters
   if (!response || !emailId || !jobId || !userId) {
     console.log('❌ Missing required parameters');
-    return res.status(400).json({ 
-      error: 'Missing required parameters',
-      success: false 
-    });
+    return res.status(400).send('Missing required parameters');
   }
 
-  let client;
-  let insertResult;
- 
   try {
     console.log('🗄️ Connecting to MongoDB...');
-    client = new MongoClient(process.env.MONGODB_URI);
+    const client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
     console.log('✅ Connected to MongoDB');
-    
+
     const db = client.db('olukayode_sage');
-    
+
     // Store the response
     console.log('💾 Storing response in database...');
-    insertResult = await db.collection('user_application_response').insertOne({
+    const insertResult = await db.collection('user_application_response').insertOne({
       userId: userId,
       response,
       emailId,
@@ -933,88 +927,111 @@ app.get('/handle-response', async (req, res) => {
       timestamp: new Date(),
       processed: false
     });
-    
+
     console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
-    
+
     // Immediate response check
     console.log('🚀 Triggering immediate response check...');
     try {
       const checkResult = await checkForResponsesImmediately(userId, emailId, jobId);
       console.log('✅ Immediate check completed:', checkResult);
-      
+
       // Update the record as processed
       await db.collection('user_application_response').updateOne(
         { _id: insertResult.insertedId },
         { $set: { processed: true, processedAt: new Date() } }
       );
       console.log('✅ Response marked as processed');
-      
+
     } catch (checkError) {
       console.error('❌ Error in immediate response check:', checkError);
       // Don't fail the request, just log the error
     }
 
-    // Send JSON response
-    res.status(200).json({
-      success: true,
-      action: response.toLowerCase() === "proceed" ? "approved" : "rejected",
-      jobId,
-      emailId,
-      userId,
-      recordId: insertResult.insertedId,
-      timestamp: new Date().toISOString()
-    });
+    await client.close();
+    console.log('✅ MongoDB connection closed');
 
-    console.log('📤 JSON response sent to client');
+    // Send success response
+    console.log('📤 Sending HTML response to client');
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Success</title>
+        <style>/* your existing styles */</style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="circle">
+            <div class="tick">✔</div>
+          </div>
+          <h1>Excellent Choice!</h1>
+          <p>We've received your response and will now proceed with your application.</p>
+          <p><small>Response ID: ${insertResult.insertedId}</small></p>
+          <div class="button-row">
+            <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
+              Auto-Apply
+            </button>
+            <button class="btn btn-purple" onclick="window.close()">
+              Exit
+            </button>
+          </div>
+          <div class="footer">
+            Powered by <strong>IntelliJob</strong> from Suntrenia
+          </div>
+        </div>
+        <script>
+          console.log('Response processed successfully');
+          setTimeout(() => {
+            document.querySelector('.tick').style.opacity = '1';
+          }, 600);
+        </script>
+      </body>
+      </html>
+    `);
 
   } catch (err) {
     console.error('❌ CRITICAL ERROR in handle-response:', err);
     console.error('Stack trace:', err.stack);
-    
-    // Send a success response even on error to prevent email loops
-    res.status(200).json({
-      success: true,
-      action: response.toLowerCase() === "proceed" ? "approved" : "rejected",
-      jobId,
-      emailId,
-      userId,
-      recordId: insertResult ? insertResult.insertedId : null,
-      timestamp: new Date().toISOString()
-    });
-  } finally {
-    // Close MongoDB connection
-    if (client) {
-      await client.close();
-    }
+    res.status(500).send(`
+      <html>
+        <body>
+          <h1>Server Error</h1>
+          <p>Please try again later. If the problem persists, contact support.</p>
+          <p><small>Error: ${err.message}</small></p>
+        </body>
+      </html>
+    `);
   }
 });
 
 // Enhanced helper function
 async function checkForResponsesImmediately(userId, emailId, jobId) {
   console.log(`🔍 IMMEDIATE CHECK: ${userId}, ${emailId}, ${jobId}`);
-  
-  let client;
+
   try {
-    client = new MongoClient(process.env.MONGODB_URI);
+    const client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
-    
+
     const db = client.db('olukayode_sage');
     const collection = db.collection('user_application_response');
-    
+
     console.log('🔎 Looking for button response in DB...');
     const buttonResponseRecord = await collection.findOne({
       userId: userId,
       jobId: jobId,
       emailId: emailId
     });
-    
+
     if (buttonResponseRecord && buttonResponseRecord.response) {
       console.log("✅ Button response found:", buttonResponseRecord.response);
       const userResponse = buttonResponseRecord.response.toLowerCase();
-      
+
       const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
       const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
-      
+
       if (isPositive) {
         console.log("✅ Positive response detected - proceeding with application");
         await db.collection('applications').updateOne(
@@ -1034,14 +1051,10 @@ async function checkForResponsesImmediately(userId, emailId, jobId) {
       console.log("ℹ️ No button response found in DB");
       return { success: true, action: 'no_response_found' };
     }
-    
+
   } catch (error) {
     console.error('❌ Error in immediate check:', error);
     throw error;
-  } finally {
-    if (client) {
-      await client.close();
-    }
   }
 }
 
@@ -1052,11 +1065,11 @@ app.listen(PORT, async () => {
   console.log(`📧 Email User: ${process.env.EMAIL_USER}`);
   console.log(`🗄️ MongoDB: ${process.env.MONGODB_URI ? 'Configured' : 'Missing'}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  
+
   // Test connections on startup
   console.log('\n🔗 Testing connections...');
   await testImapConnection();
-  
+
   console.log(`\n✅ Server running on http://localhost:${PORT}`);
   console.log(`📊 Logs available in Render Dashboard → Your Service → Logs`);
 });
