@@ -678,6 +678,7 @@
 // });
 
 
+
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv').config();
@@ -687,9 +688,17 @@ const rateLimit = require('express-rate-limit');
 const imaps = require('imap-simple');
 const { simpleParser } = require('mailparser');
 const nodemailer = require('nodemailer');
+const { WebSocketServer } = require('ws');
+const http = require('http');
 
 const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
 const PORT = process.env.PORT || 3000;
+
+// Track connected clients by userId
+const clients = new Map();
 
 // Enhanced logging middleware
 app.use((req, res, next) => {
@@ -854,7 +863,96 @@ app.get('/check-responses', async (req, res) => {
         console.log(`👤 From: ${from}`);
         console.log(`📝 Subject: ${subject}`);
 
-        // ... rest of your existing processing code ...
+       // Extract email content for analysis
+const emailContent = (parsedEmail.text || '').toLowerCase();
+console.log(`📄 Email content preview: ${emailContent.substring(0, 100)}...`);
+
+// Check if this is a response to one of our applications
+const applicationMatch = await db.collection('applications').findOne({
+  userId: userId,
+  $or: [
+    { employerEmail: { $regex: from, $options: 'i' } },
+    { 'emailData.to': { $regex: from, $options: 'i' } }
+  ]
+});
+
+if (applicationMatch) {
+  console.log(`🎯 Found matching application for job: ${applicationMatch.jobTitle}`);
+  
+  // Analyze email content for positive/negative response
+  const positiveKeywords = ["congratulation", "interview", "next step", "selected", "welcome", "offer", "opportunity", "interested"];
+  const negativeKeywords = ["unfortunately", "not selected", "reject", "decline", "not move forward", "other candidate"];
+  
+  const isPositive = positiveKeywords.some(keyword => emailContent.includes(keyword));
+  const isNegative = negativeKeywords.some(keyword => emailContent.includes(keyword));
+  
+  let responseType = 'unknown';
+  if (isPositive) {
+    responseType = 'positive';
+    positiveResponses++;
+  } else if (isNegative) {
+    responseType = 'negative';
+    negativeResponses++;
+  }
+  
+  console.log(`📊 Response type: ${responseType}`);
+  
+  // Store the response in database
+  const responseData = {
+    userId: userId,
+    applicationId: applicationMatch._id.toString(),
+    jobId: applicationMatch.jobId,
+    employer: from,
+    subject: subject,
+    content: emailContent,
+    responseType: responseType,
+    receivedAt: new Date(),
+    processed: true
+  };
+  
+  await collection.insertOne(responseData);
+  console.log(`💾 Response stored in database with type: ${responseType}`);
+  
+  // Send real-time update via WebSocket if client is connected
+  const wsClient = clients.get(userId);
+  if (wsClient && wsClient.readyState === 1) {
+    wsClient.send(JSON.stringify({
+      type: 'email_response',
+      data: {
+        applicationId: applicationMatch._id.toString(),
+        jobId: applicationMatch.jobId,
+        jobTitle: applicationMatch.jobTitle,
+        employer: from,
+        subject: subject,
+        responseType: responseType,
+        timestamp: new Date().toISOString()
+      }
+    }));
+    console.log(`📡 WebSocket update sent for user: ${userId}`);
+  }
+  
+  // Update application status based on response
+  let newStatus = applicationMatch.status;
+  if (isPositive) {
+    newStatus = 'response_received';
+    // If it's clearly a positive response, update accordingly
+    if (emailContent.includes('interview') || emailContent.includes('next step')) {
+      newStatus = 'interview_stage';
+    }
+  } else if (isNegative) {
+    newStatus = 'rejected';
+  }
+  
+  if (newStatus !== applicationMatch.status) {
+    await db.collection('applications').updateOne(
+      { _id: applicationMatch._id },
+      { $set: { status: newStatus, lastUpdated: new Date() } }
+    );
+    console.log(`🔄 Application status updated to: ${newStatus}`);
+  }
+} else {
+  console.log('ℹ️ Email does not match any known applications');
+}
 
       } catch (parseError) {
         console.error('❌ Error parsing email:', parseError);
@@ -897,32 +995,26 @@ app.get('/check-responses', async (req, res) => {
 });
 
 // Enhanced handle-response with debugging
-// Enhanced handle-response with debugging
 app.get('/handle-response', async (req, res) => {
   const { response, emailId, jobId, userId } = req.query;
-  
+
   console.log('\n🎯 HANDLE-RESPONSE CALLED:');
   console.log('📩 Received:', { response, emailId, jobId, userId });
-  
+
   // Validate required parameters
   if (!response || !emailId || !jobId || !userId) {
     console.log('❌ Missing required parameters');
-    return res.status(400).json({ 
-      error: 'Missing required parameters',
-      success: false 
-    });
+    return res.status(400).json({ error: 'Missing required parameters' });
   }
 
-  let client;
- 
   try {
     console.log('🗄️ Connecting to MongoDB...');
-    client = new MongoClient(process.env.MONGODB_URI);
+    const client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
     console.log('✅ Connected to MongoDB');
-    
+
     const db = client.db('olukayode_sage');
-    
+
     // Store the response
     console.log('💾 Storing response in database...');
     const insertResult = await db.collection('user_application_response').insertOne({
@@ -933,61 +1025,65 @@ app.get('/handle-response', async (req, res) => {
       timestamp: new Date(),
       processed: false
     });
-    
+
     console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
-    
+
+    // Send response via WebSocket if client is connected
+    const wsClient = clients.get(userId);
+    if (wsClient && wsClient.readyState === 1) {
+      console.log('📡 Sending response via WebSocket to user:', userId);
+      wsClient.send(JSON.stringify({
+        type: 'response_received',
+        data: {
+          response,
+          emailId,
+          jobId,
+          timestamp: new Date().toISOString(),
+          dbId: insertResult.insertedId.toString()
+        }
+      }));
+    } else {
+      console.log('ℹ️ No WebSocket client connected for user:', userId);
+    }
+
     // Immediate response check
     console.log('🚀 Triggering immediate response check...');
     try {
       const checkResult = await checkForResponsesImmediately(userId, emailId, jobId);
       console.log('✅ Immediate check completed:', checkResult);
-      
+
       // Update the record as processed
       await db.collection('user_application_response').updateOne(
         { _id: insertResult.insertedId },
         { $set: { processed: true, processedAt: new Date() } }
       );
       console.log('✅ Response marked as processed');
-      
+
     } catch (checkError) {
       console.error('❌ Error in immediate response check:', checkError);
       // Don't fail the request, just log the error
     }
 
-    // Send JSON response
-    res.status(200).json({
-      success: true,
-      action: response.toLowerCase() === "proceed" ? "approved" : "rejected",
-      jobId,
-      emailId,
-      userId,
-      recordId: insertResult.insertedId,
+    await client.close();
+    console.log('✅ MongoDB connection closed');
+
+    // Send minimal success response (no HTML page)
+    console.log('📤 Sending success response to client');
+    res.json({ 
+      success: true, 
+      message: 'Response received and processed',
+      responseId: insertResult.insertedId.toString(),
       timestamp: new Date().toISOString()
     });
-
-    console.log('📤 JSON response sent to client');
 
   } catch (err) {
     console.error('❌ CRITICAL ERROR in handle-response:', err);
     console.error('Stack trace:', err.stack);
-    
-    // Return JSON error response to match client expectations
     res.status(500).json({ 
-      error: err.message,
-      success: false,
-      timestamp: new Date().toISOString(),
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      error: 'Server error',
+      message: err.message,
+      timestamp: new Date().toISOString()
     });
-  } finally {
-    // Always close the client connection
-    if (client) {
-      try {
-        await client.close();
-        console.log('✅ MongoDB connection closed');
-      } catch (closeError) {
-        console.error('❌ Error closing MongoDB connection:', closeError);
-      }
-    }
   }
 });
 
@@ -1042,8 +1138,39 @@ async function checkForResponsesImmediately(userId, emailId, jobId) {
   }
 }
 
+// WebSocket connection handling
+wss.on('connection', (ws) => {
+  console.log('✅ WebSocket client connected');
+
+  ws.on('message', (msg) => {
+    try {
+      const data = JSON.parse(msg);
+      if (data.userId) {
+        clients.set(data.userId, ws);
+        console.log(`🔗 WebSocket client registered for user: ${data.userId}`);
+      }
+    } catch (err) {
+      console.error('❌ Error parsing WS message:', err);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('❌ WebSocket client disconnected');
+    for (const [key, value] of clients.entries()) {
+      if (value === ws) {
+        clients.delete(key);
+        console.log(`🔗 WebSocket client removed for user: ${key}`);
+      }
+    }
+  });
+
+  ws.on('error', (error) => {
+    console.error('❌ WebSocket error:', error);
+  });
+});
+
 // Server startup with comprehensive logging
-app.listen(PORT, async () => {
+server.listen(PORT, async () => {
   console.log(`\n🚀 Server starting...`);
   console.log(`📍 Port: ${PORT}`);
   console.log(`📧 Email User: ${process.env.EMAIL_USER}`);
