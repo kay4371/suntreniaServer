@@ -665,6 +665,7 @@
 //     await client.close();
 //     return { success: true };
 
+<<<<<<< HEAD
 //   } catch (error) {
 //     console.error('Error in immediate check:', error);
 //     throw error;
@@ -1345,6 +1346,8 @@
 //     await client.close();
 //     return { success: true };
 
+=======
+>>>>>>> 855ac8093dcbb600833ba18405db511b76bf58e5
 //   } catch (error) {
 //     console.error('Error in immediate check:', error);
 //     throw error;
@@ -1863,4 +1866,8 @@ server.listen(PORT, async () => {
 
   console.log(`\n✅ Server running on http://localhost:${PORT}`);
   console.log(`📊 Logs available in Render Dashboard → Your Service → Logs`);
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> 855ac8093dcbb600833ba18405db511b76bf58e5
