@@ -1376,7 +1376,21 @@ const http = require('http');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: "/ws" });
+
+
+const wss = new WebSocketServer({ noServer: true });
+
+
+
+server.on("upgrade", (req, socket, head) => {
+  if (req.url === "/ws") {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit("connection", ws, req);
+    });
+  } else {
+    socket.destroy();
+  }
+});
 const PORT = process.env.PORT || 3000;
 
 // Track connected clients by userId
@@ -1867,6 +1881,3 @@ server.listen(PORT, async () => {
   console.log(`📊 Logs available in Render Dashboard → Your Service → Logs`);
 
 });
-
-
-
