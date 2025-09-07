@@ -1376,8 +1376,7 @@ const http = require('http');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
-
+const wss = new WebSocketServer({ server, path: "/ws" });
 const PORT = process.env.PORT || 3000;
 
 // Track connected clients by userId
