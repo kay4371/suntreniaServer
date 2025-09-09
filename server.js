@@ -1362,7 +1362,6 @@
 
 
 
-
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv').config();
@@ -1452,6 +1451,58 @@ app.get('/', (req, res) => {
     environment: envInfo,
     timestamp: new Date().toISOString()
   });
+});
+
+// NEW ENDPOINT: Get all user responses
+app.get('/api/user-responses', async (req, res) => {
+  const { userId } = req.query;
+
+  console.log('📋 GET USER-RESPONSES:', { userId });
+
+  if (!userId) {
+    console.log('❌ Missing userId parameter');
+    return res.status(400).json({ error: 'userId is required' });
+  }
+
+  let mongoClient;
+
+  try {
+    console.log('🗄️ Connecting to MongoDB...');
+    mongoClient = new MongoClient(process.env.MONGODB_URI);
+    await mongoClient.connect();
+    console.log('✅ Connected to MongoDB');
+
+    const db = mongoClient.db('olukayode_sage');
+    const collection = db.collection('user_application_response');
+
+    // Get all responses for this user, sorted by timestamp (newest first)
+    console.log(`🔍 Retrieving responses for user: ${userId}`);
+    const userResponses = await collection.find({ userId }).sort({ timestamp: -1 }).toArray();
+
+    console.log(`✅ Found ${userResponses.length} responses for user ${userId}`);
+    
+    await mongoClient.close();
+
+    res.json({
+      success: true,
+      count: userResponses.length,
+      responses: userResponses,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ ERROR retrieving user responses:', error);
+    
+    if (mongoClient) {
+      await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+    }
+
+    res.status(500).json({ 
+      error: 'Failed to retrieve user responses',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Enhanced checkForResponses with detailed logging
@@ -1581,12 +1632,35 @@ app.get('/check-responses', async (req, res) => {
   }
 });
 
-// Enhanced handle-response with debugging
+// Enhanced handle-response with debugging - NOW SAVES ALL PARAMETERS
 app.get('/handle-response', async (req, res) => {
-  const { response, emailId, jobId, userId } = req.query;
+  // Extract all parameters with default values to prevent errors
+  const { 
+    response, 
+    emailId, 
+    jobId, 
+    userId, 
+    emailSubject = 'Not provided', 
+    companyName = 'Unknown Company', 
+    jobTitle = 'Unknown Position',
+    applicationStatus = 'pending',
+    emailDate = new Date().toISOString(),
+    emailFrom = 'Unknown Sender'
+  } = req.query;
 
   console.log('\n🎯 HANDLE-RESPONSE CALLED:');
-  console.log('📩 Received:', { response, emailId, jobId, userId });
+  console.log('📩 Received parameters:', { 
+    response, 
+    emailId, 
+    jobId, 
+    userId, 
+    emailSubject, 
+    companyName, 
+    jobTitle,
+    applicationStatus,
+    emailDate,
+    emailFrom
+  });
 
   // Validate required parameters
   if (!response || !emailId || !jobId || !userId) {
@@ -1594,26 +1668,37 @@ app.get('/handle-response', async (req, res) => {
     return res.status(400).send('Missing required parameters');
   }
 
+  let mongoClient;
+
   try {
     console.log('🗄️ Connecting to MongoDB...');
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
+    mongoClient = new MongoClient(process.env.MONGODB_URI);
+    await mongoClient.connect();
     console.log('✅ Connected to MongoDB');
 
-    const db = client.db('olukayode_sage');
+    const db = mongoClient.db('olukayode_sage');
 
-    // Store the response
-    console.log('💾 Storing response in database...');
-    const insertResult = await db.collection('user_application_response').insertOne({
+    // Store the response with ALL parameters and default values
+    console.log('💾 Storing response in database with all parameters...');
+    const responseData = {
       userId: userId,
-      response,
-      emailId,
-      jobId,
+      response: response,
+      emailId: emailId,
+      jobId: jobId,
+      emailSubject: emailSubject,
+      companyName: companyName,
+      jobTitle: jobTitle,
+      applicationStatus: applicationStatus,
+      emailDate: emailDate,
+      emailFrom: emailFrom,
       timestamp: new Date(),
       processed: false
-    });
+    };
+
+    const insertResult = await db.collection('user_application_response').insertOne(responseData);
 
     console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
+    console.log('📊 Stored data:', responseData);
 
     // Immediate response check
     console.log('🚀 Triggering immediate response check...');
@@ -1633,7 +1718,7 @@ app.get('/handle-response', async (req, res) => {
       // Don't fail the request, just log the error
     }
 
-    await client.close();
+    await mongoClient.close();
     console.log('✅ MongoDB connection closed');
 
     // Send success response
@@ -1645,7 +1730,21 @@ app.get('/handle-response', async (req, res) => {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Success</title>
-        <style>/* your existing styles */</style>
+        <style>
+          body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+          .container { max-width: 500px; margin: 50px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+          .circle { width: 80px; height: 80px; background: #4CAF50; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; }
+          .tick { color: white; font-size: 40px; opacity: 0; transition: opacity 0.5s ease; }
+          h1 { color: #333; margin-bottom: 15px; }
+          p { color: #666; margin-bottom: 20px; }
+          .button-row { display: flex; gap: 10px; justify-content: center; margin: 25px 0; }
+          .btn { padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background 0.3s; }
+          .btn-green { background: #4CAF50; color: white; }
+          .btn-green:hover { background: #45a049; }
+          .btn-purple { background: #9C27B0; color: white; }
+          .btn-purple:hover { background: #7B1FA2; }
+          .footer { margin-top: 25px; color: #999; font-size: 14px; }
+        </style>
       </head>
       <body>
         <div class="container">
@@ -1680,6 +1779,11 @@ app.get('/handle-response', async (req, res) => {
   } catch (err) {
     console.error('❌ CRITICAL ERROR in handle-response:', err);
     console.error('Stack trace:', err.stack);
+    
+    if (mongoClient) {
+      await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+    }
+    
     res.status(500).send(`
       <html>
         <body>
