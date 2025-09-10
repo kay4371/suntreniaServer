@@ -1362,6 +1362,11 @@
 
 
 
+
+
+
+
+
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv').config();
@@ -1452,12 +1457,16 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////
 // NEW ENDPOINT: Get all user responses
 app.get('/api/user-responses', async (req, res) => {
   const { userId } = req.query;
 
-  console.log('📋 GET USER-RESPONSES:', { userId });
+  console.log('📋 GET USER-RESPONSES CALLED:');
+  console.log('📋 Query parameters:', req.query);
+  console.log('📋 UserId received:', userId);
 
   if (!userId) {
     console.log('❌ Missing userId parameter');
@@ -1480,6 +1489,12 @@ app.get('/api/user-responses', async (req, res) => {
     const userResponses = await collection.find({ userId }).sort({ timestamp: -1 }).toArray();
 
     console.log(`✅ Found ${userResponses.length} responses for user ${userId}`);
+    console.log('📊 Responses found:', userResponses.map(r => ({
+      id: r._id,
+      response: r.response,
+      jobId: r.jobId,
+      timestamp: r.timestamp
+    })));
     
     await mongoClient.close();
 
@@ -1492,6 +1507,7 @@ app.get('/api/user-responses', async (req, res) => {
 
   } catch (error) {
     console.error('❌ ERROR retrieving user responses:', error);
+    console.error('❌ Error stack:', error.stack);
     
     if (mongoClient) {
       await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
@@ -1504,7 +1520,6 @@ app.get('/api/user-responses', async (req, res) => {
     });
   }
 });
-
 // Enhanced checkForResponses with detailed logging
 app.get('/check-responses', async (req, res) => {
   const { userId, emailId, jobId } = req.query;
@@ -1633,8 +1648,9 @@ app.get('/check-responses', async (req, res) => {
 });
 
 // Enhanced handle-response with debugging - NOW SAVES ALL PARAMETERS
+// Enhanced handle-response with userId trimming fix
 app.get('/handle-response', async (req, res) => {
-  // Extract all parameters with default values to prevent errors
+  // Extract all parameters with default values and trim whitespace
   const { 
     response, 
     emailId, 
@@ -1648,23 +1664,38 @@ app.get('/handle-response', async (req, res) => {
     emailFrom = 'Unknown Sender'
   } = req.query;
 
+  // Trim all string parameters to remove whitespace
+  const trimmedUserId = (userId || '').trim();
+  const trimmedResponse = (response || '').trim();
+  const trimmedEmailId = (emailId || '').trim();
+  const trimmedJobId = (jobId || '').trim();
+  const trimmedEmailSubject = (emailSubject || '').trim();
+  const trimmedCompanyName = (companyName || '').trim();
+  const trimmedJobTitle = (jobTitle || '').trim();
+
   console.log('\n🎯 HANDLE-RESPONSE CALLED:');
   console.log('📩 Received parameters:', { 
-    response, 
-    emailId, 
-    jobId, 
-    userId, 
-    emailSubject, 
-    companyName, 
-    jobTitle,
-    applicationStatus,
-    emailDate,
-    emailFrom
+    response: `'${response}'`, 
+    emailId: `'${emailId}'`, 
+    jobId: `'${jobId}'`, 
+    userId: `'${userId}'`,
+    emailSubject: `'${emailSubject}'`,
+    companyName: `'${companyName}'`,
+    jobTitle: `'${jobTitle}'`
+  });
+  console.log('📩 Trimmed parameters:', { 
+    response: `'${trimmedResponse}'`, 
+    emailId: `'${trimmedEmailId}'`, 
+    jobId: `'${trimmedJobId}'`, 
+    userId: `'${trimmedUserId}'`,
+    emailSubject: `'${trimmedEmailSubject}'`,
+    companyName: `'${trimmedCompanyName}'`,
+    jobTitle: `'${trimmedJobTitle}'`
   });
 
   // Validate required parameters
-  if (!response || !emailId || !jobId || !userId) {
-    console.log('❌ Missing required parameters');
+  if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
+    console.log('❌ Missing required parameters after trimming');
     return res.status(400).send('Missing required parameters');
   }
 
@@ -1681,13 +1712,13 @@ app.get('/handle-response', async (req, res) => {
     // Store the response with ALL parameters and default values
     console.log('💾 Storing response in database with all parameters...');
     const responseData = {
-      userId: userId,
-      response: response,
-      emailId: emailId,
-      jobId: jobId,
-      emailSubject: emailSubject,
-      companyName: companyName,
-      jobTitle: jobTitle,
+      userId: trimmedUserId,
+      response: trimmedResponse,
+      emailId: trimmedEmailId,
+      jobId: trimmedJobId,
+      emailSubject: trimmedEmailSubject,
+      companyName: trimmedCompanyName,
+      jobTitle: trimmedJobTitle,
       applicationStatus: applicationStatus,
       emailDate: emailDate,
       emailFrom: emailFrom,
@@ -1703,7 +1734,7 @@ app.get('/handle-response', async (req, res) => {
     // Immediate response check
     console.log('🚀 Triggering immediate response check...');
     try {
-      const checkResult = await checkForResponsesImmediately(userId, emailId, jobId);
+      const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
       console.log('✅ Immediate check completed:', checkResult);
 
       // Update the record as processed
@@ -1795,10 +1826,14 @@ app.get('/handle-response', async (req, res) => {
     `);
   }
 });
-
 // Enhanced helper function
 async function checkForResponsesImmediately(userId, emailId, jobId) {
-  console.log(`🔍 IMMEDIATE CHECK: ${userId}, ${emailId}, ${jobId}`);
+  // Trim parameters to ensure consistency
+  const trimmedUserId = (userId || '').trim();
+  const trimmedEmailId = (emailId || '').trim();
+  const trimmedJobId = (jobId || '').trim();
+  
+  console.log(`🔍 IMMEDIATE CHECK: '${trimmedUserId}', '${trimmedEmailId}', '${trimmedJobId}'`);
 
   try {
     const client = new MongoClient(process.env.MONGODB_URI);
@@ -1809,9 +1844,9 @@ async function checkForResponsesImmediately(userId, emailId, jobId) {
 
     console.log('🔎 Looking for button response in DB...');
     const buttonResponseRecord = await collection.findOne({
-      userId: userId,
-      jobId: jobId,
-      emailId: emailId
+      userId: trimmedUserId,
+      jobId: trimmedJobId,
+      emailId: trimmedEmailId
     });
 
     if (buttonResponseRecord && buttonResponseRecord.response) {
@@ -1824,14 +1859,14 @@ async function checkForResponsesImmediately(userId, emailId, jobId) {
       if (isPositive) {
         console.log("✅ Positive response detected - proceeding with application");
         await db.collection('applications').updateOne(
-          { userId, jobId },
+          { userId: trimmedUserId, jobId: trimmedJobId },
           { $set: { status: 'approved', respondedAt: new Date() } }
         );
         return { success: true, action: 'approved' };
       } else {
         console.log("❌ Negative response detected - stopping application");
         await db.collection('applications').updateOne(
-          { userId, jobId },
+          { userId: trimmedUserId, jobId: trimmedJobId },
           { $set: { status: 'rejected', respondedAt: new Date() } }
         );
         return { success: true, action: 'rejected' };
