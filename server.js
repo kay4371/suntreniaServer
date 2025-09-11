@@ -1365,8 +1365,6 @@
 
 
 
-
-
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv').config();
@@ -1376,15 +1374,33 @@ const rateLimit = require('express-rate-limit');
 const imaps = require('imap-simple');
 const { simpleParser } = require('mailparser');
 const nodemailer = require('nodemailer');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: [
+      process.env.FRONTEND_URL || 'http://localhost:3000',
+      'http://localhost:5173'
+    ],
+    methods: ['GET', 'POST']
+  }
+});
+
+
+io.on('connection', (socket) => {
+  console.log('🔌 WebSocket client connected:', socket.id);
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Enhanced logging middleware
 app.use((req, res, next) => {
   console.log(`📨 ${new Date().toISOString()} ${req.method} ${req.url}`);
-  console.log(`📋 Query:`, req.query);
-  console.log(`📦 Body:`, req.body);
+  console.log('📋 Query:', req.query);
+  console.log('📦 Body:', req.body);
   next();
 });
 
@@ -1675,22 +1691,22 @@ app.get('/handle-response', async (req, res) => {
 
   console.log('\n🎯 HANDLE-RESPONSE CALLED:');
   console.log('📩 Received parameters:', { 
-    response: `'${response}'`, 
-    emailId: `'${emailId}'`, 
-    jobId: `'${jobId}'`, 
-    userId: `'${userId}'`,
-    emailSubject: `'${emailSubject}'`,
-    companyName: `'${companyName}'`,
-    jobTitle: `'${jobTitle}'`
+    response: `${response}`, 
+    emailId: `${emailId}`, 
+    jobId: `${jobId}`, 
+    userId: `${userId}`,
+    emailSubject: `${emailSubject}`,
+    companyName: `${companyName}`,
+    jobTitle: `${jobTitle}`
   });
   console.log('📩 Trimmed parameters:', { 
-    response: `'${trimmedResponse}'`, 
-    emailId: `'${trimmedEmailId}'`, 
-    jobId: `'${trimmedJobId}'`, 
-    userId: `'${trimmedUserId}'`,
-    emailSubject: `'${trimmedEmailSubject}'`,
-    companyName: `'${trimmedCompanyName}'`,
-    jobTitle: `'${trimmedJobTitle}'`
+    response: `${trimmedResponse}`, 
+    emailId: `${trimmedEmailId}`, 
+    jobId: `${trimmedJobId}`, 
+    userId: `${trimmedUserId}`,
+    emailSubject: `${trimmedEmailSubject}`,
+    companyName: `${trimmedCompanyName}`,
+    jobTitle: `${trimmedJobTitle}`
   });
 
   // Validate required parameters
@@ -1744,6 +1760,17 @@ app.get('/handle-response', async (req, res) => {
       );
       console.log('✅ Response marked as processed');
 
+      // 🔥 WEB SOCKET NOTIFICATION: Notify frontend that data is ready
+      io.emit('dataReady', {
+        userId: trimmedUserId,
+        jobId: trimmedJobId,
+        emailId: trimmedEmailId,
+        responseId: insertResult.insertedId,
+        message: 'Application response processed and data is ready for retrieval',
+        timestamp: new Date().toISOString()
+      });
+      console.log('📢 WebSocket notification sent to frontend');
+
     } catch (checkError) {
       console.error('❌ Error in immediate response check:', checkError);
       // Don't fail the request, just log the error
@@ -1754,58 +1781,266 @@ app.get('/handle-response', async (req, res) => {
 
     // Send success response
     console.log('📤 Sending HTML response to client');
-    res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Success</title>
-        <style>
-          body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
-          .container { max-width: 500px; margin: 50px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
-          .circle { width: 80px; height: 80px; background: #4CAF50; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; }
-          .tick { color: white; font-size: 40px; opacity: 0; transition: opacity 0.5s ease; }
-          h1 { color: #333; margin-bottom: 15px; }
-          p { color: #666; margin-bottom: 20px; }
-          .button-row { display: flex; gap: 10px; justify-content: center; margin: 25px 0; }
-          .btn { padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background 0.3s; }
-          .btn-green { background: #4CAF50; color: white; }
-          .btn-green:hover { background: #45a049; }
-          .btn-purple { background: #9C27B0; color: white; }
-          .btn-purple:hover { background: #7B1FA2; }
-          .footer { margin-top: 25px; color: #999; font-size: 14px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="circle">
-            <div class="tick">✔</div>
-          </div>
-          <h1>Excellent Choice!</h1>
-          <p>We've received your response and will now proceed with your application.</p>
-          <p><small>Response ID: ${insertResult.insertedId}</small></p>
-          <div class="button-row">
-            <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
-              Auto-Apply
-            </button>
-            <button class="btn btn-purple" onclick="window.close()">
-              Exit
-            </button>
-          </div>
-          <div class="footer">
-            Powered by <strong>IntelliJob</strong> from Suntrenia
-          </div>
-        </div>
-        <script>
-          console.log('Response processed successfully');
-          setTimeout(() => {
-            document.querySelector('.tick').style.opacity = '1';
-          }, 600);
-        </script>
-      </body>
-      </html>
-    `);
+    res.send(
+      `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Success</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 50px auto;
+      background: white;
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .circle {
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      border-radius: 50%;
+      margin: 0 auto 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 32px rgba(34, 197, 94, 0.25);
+      position: relative;
+      animation: scaleIn 0.6s ease-out 0.3s both;
+    }
+
+    .circle::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      border-radius: 50%;
+      z-index: -1;
+      opacity: 0.3;
+      animation: pulse 2s ease-in-out 1s infinite;
+    }
+
+    @keyframes scaleIn {
+      from { transform: scale(0); }
+      to { transform: scale(1); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.3; }
+      50% { transform: scale(1.05); opacity: 0.6; }
+    }
+
+    .tick {
+      color: white;
+      font-size: 36px;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.5s ease 0.8s;
+    }
+
+    h1 {
+      color: #1f2937;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 15px;
+    }
+
+    p {
+      color: #6b7280;
+      font-size: 16px;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin: 30px 0;
+    }
+
+    .btn {
+      padding: 14px 28px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 15px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transition: left 0.6s;
+    }
+
+    .btn:hover::before {
+      left: 100%;
+    }
+
+    .btn-green {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+    }
+
+    .btn-green:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+    }
+
+    .btn-purple {
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    }
+
+    .btn-purple:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+    }
+
+    .footer {
+      margin-top: 30px;
+      color: #9ca3af;
+      font-size: 14px;
+    }
+
+    /* Responsive design */
+    @media (max-width: 480px) {
+      .container {
+        margin: 20px;
+        padding: 32px 24px;
+      }
+      
+      .button-row {
+        flex-direction: column;
+        gap: 12px;
+      }
+      
+      .btn {
+        width: 100%;
+      }
+      
+      h1 {
+        font-size: 24px;
+      }
+    }
+
+    .exit-message {
+      display: none;
+      text-align: center;
+      padding: 50px;
+      font-family: sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="circle">
+      <div class="tick">✔</div>
+    </div>
+    <h1>Excellent Choice!</h1>
+    <p>We've received your response and will now proceed with your application.</p>
+    <div class="button-row">
+      <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
+        Auto-Apply
+      </button>
+      <button class="btn btn-purple" onclick="exitPage()">
+        Exit
+      </button>
+    </div>
+    <div class="footer">
+      Powered by <strong>IntelliJob</strong> from Suntrenia
+    </div>
+  </div>
+
+  <div class="exit-message">
+    <h2>You can safely close this tab now</h2>
+    <p>Thank you for using IntelliJob!</p>
+  </div>
+
+  <script>
+    console.log('Response processed successfully');
+    
+    // Animate tick appearance
+    setTimeout(() => {
+      document.querySelector('.tick').style.opacity = '1';
+    }, 800);
+    
+    // Exit function
+    function exitPage() {
+      // Hide main container
+      document.querySelector('.container').style.display = 'none';
+      
+      // Show exit message
+      document.querySelector('.exit-message').style.display = 'block';
+      
+      // Try different exit methods
+      setTimeout(() => {
+        try {
+          // Method 1: Try to close window
+          window.close();
+        } catch (e) {
+          console.log('Cannot close window');
+        }
+        
+        // Method 2: Try history back
+        setTimeout(() => {
+          try {
+            if (window.history.length > 1) {
+              window.history.back();
+            }
+          } catch (e) {
+            console.log('Cannot go back');
+          }
+        }, 500);
+      }, 1000);
+    }
+    
+    // Add button interaction feedback
+    document.querySelectorAll('.btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        this.style.transform = 'scale(0.95) translateY(-1px)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 150);
+      });
+    });
+  </script>
+</body>
+</html>`
+    );
 
   } catch (err) {
     console.error('❌ CRITICAL ERROR in handle-response:', err);
@@ -1815,15 +2050,15 @@ app.get('/handle-response', async (req, res) => {
       await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
     }
     
-    res.status(500).send(`
-      <html>
+    res.status(500).send(
+      `<html>
         <body>
           <h1>Server Error</h1>
           <p>Please try again later. If the problem persists, contact support.</p>
           <p><small>Error: ${err.message}</small></p>
         </body>
-      </html>
-    `);
+      </html>`
+    );
   }
 });
 // Enhanced helper function
@@ -1883,7 +2118,7 @@ async function checkForResponsesImmediately(userId, emailId, jobId) {
 }
 
 // Server startup with comprehensive logging
-app.listen(PORT, async () => {
+server.listen(PORT, async () => {
   console.log(`\n🚀 Server starting...`);
   console.log(`📍 Port: ${PORT}`);
   console.log(`📧 Email User: ${process.env.EMAIL_USER}`);
@@ -1895,5 +2130,5 @@ app.listen(PORT, async () => {
   await testImapConnection();
 
   console.log(`\n✅ Server running on http://localhost:${PORT}`);
-  console.log(`📊 Logs available in Render Dashboard → Your Service → Logs`);
+  console.log('📊 Logs available in Render Dashboard → Your Service → Logs');
 });
