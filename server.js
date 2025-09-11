@@ -1622,6 +1622,96 @@ app.get('/check-responses', async (req, res) => {
         console.log(`📝 Subject: ${subject}`);
 
         // ... rest of your existing processing code ...
+       // Extract email content for analysis
+const emailContent = (parsedEmail.text || '').toLowerCase();
+console.log(`📄 Email content preview: ${emailContent.substring(0, 100)}...`);
+
+// Check if this is a response to one of our applications
+const applicationMatch = await db.collection('applications').findOne({
+  userId: userId,
+  $or: [
+    { employerEmail: { $regex: from, $options: 'i' } },
+    { 'emailData.to': { $regex: from, $options: 'i' } }
+  ]
+});
+
+if (applicationMatch) {
+  console.log(`🎯 Found matching application for job: ${applicationMatch.jobTitle}`);
+  
+  // Analyze email content for positive/negative response
+  const positiveKeywords = ["congratulation", "interview", "next step", "selected", "welcome", "offer", "opportunity", "interested"];
+  const negativeKeywords = ["unfortunately", "not selected", "reject", "decline", "not move forward", "other candidate"];
+  
+  const isPositive = positiveKeywords.some(keyword => emailContent.includes(keyword));
+  const isNegative = negativeKeywords.some(keyword => emailContent.includes(keyword));
+  
+  let responseType = 'unknown';
+  if (isPositive) {
+    responseType = 'positive';
+    positiveResponses++;
+  } else if (isNegative) {
+    responseType = 'negative';
+    negativeResponses++;
+  }
+  
+  console.log(`📊 Response type: ${responseType}`);
+  
+  // Store the response in database
+  const responseData = {
+    userId: userId,
+    applicationId: applicationMatch._id.toString(),
+    jobId: applicationMatch.jobId,
+    employer: from,
+    subject: subject,
+    content: emailContent,
+    responseType: responseType,
+    receivedAt: new Date(),
+    processed: true
+  };
+  
+  await collection.insertOne(responseData);
+  console.log(`💾 Response stored in database with type: ${responseType}`);
+  
+  // Send real-time update via WebSocket if client is connected
+  const wsClient = clients.get(userId);
+  if (wsClient && wsClient.readyState === 1) {
+    wsClient.send(JSON.stringify({
+      type: 'email_response',
+      data: {
+        applicationId: applicationMatch._id.toString(),
+        jobId: applicationMatch.jobId,
+        jobTitle: applicationMatch.jobTitle,
+        employer: from,
+        subject: subject,
+        responseType: responseType,
+        timestamp: new Date().toISOString()
+      }
+    }));
+    console.log(`📡 WebSocket update sent for user: ${userId}`);
+  }
+  
+  // Update application status based on response
+  let newStatus = applicationMatch.status;
+  if (isPositive) {
+    newStatus = 'response_received';
+    // If it's clearly a positive response, update accordingly
+    if (emailContent.includes('interview') || emailContent.includes('next step')) {
+      newStatus = 'interview_stage';
+    }
+  } else if (isNegative) {
+    newStatus = 'rejected';
+  }
+  
+  if (newStatus !== applicationMatch.status) {
+    await db.collection('applications').updateOne(
+      { _id: applicationMatch._id },
+      { $set: { status: newStatus, lastUpdated: new Date() } }
+    );
+    console.log(`🔄 Application status updated to: ${newStatus}`);
+  }
+} else {
+  console.log('ℹ️ Email does not match any known applications');
+}
 
       } catch (parseError) {
         console.error('❌ Error parsing email:', parseError);
