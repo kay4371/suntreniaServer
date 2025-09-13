@@ -1364,7 +1364,7 @@
 
 
 
-
+const WebSocket = require('ws');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv').config();
@@ -1375,23 +1375,30 @@ const imaps = require('imap-simple');
 const { simpleParser } = require('mailparser');
 const nodemailer = require('nodemailer');
 const http = require('http');
-const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      'http://localhost:5173'
-    ],
-    methods: ['GET', 'POST']
+const wss = new WebSocket.Server({ server });
+
+const clients = new Map(); // userId → ws
+
+wss.on('connection', (ws, req) => {
+  console.log('🔌 WS client connected');
+
+  // Optionally get userId from query (?userId=123)
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const userId = url.searchParams.get('userId');
+  if (userId) {
+    clients.set(userId, ws);
+    console.log(`🆔 Registered client for userId: ${userId}`);
   }
-});
 
+  ws.send(JSON.stringify({ message: 'Welcome!' }));
 
-io.on('connection', (socket) => {
-  console.log('🔌 WebSocket client connected:', socket.id);
+  ws.on('close', () => {
+    if (userId) clients.delete(userId);
+    console.log(`❌ Client disconnected${userId ? ` (${userId})` : ''}`);
+  });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -1473,9 +1480,7 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////
 // NEW ENDPOINT: Get all user responses
 app.get('/api/user-responses', async (req, res) => {
   const { userId } = req.query;
@@ -1536,6 +1541,7 @@ app.get('/api/user-responses', async (req, res) => {
     });
   }
 });
+
 // Enhanced checkForResponses with detailed logging
 app.get('/check-responses', async (req, res) => {
   const { userId, emailId, jobId } = req.query;
@@ -1621,97 +1627,96 @@ app.get('/check-responses', async (req, res) => {
         console.log(`👤 From: ${from}`);
         console.log(`📝 Subject: ${subject}`);
 
-        // ... rest of your existing processing code ...
-       // Extract email content for analysis
-const emailContent = (parsedEmail.text || '').toLowerCase();
-console.log(`📄 Email content preview: ${emailContent.substring(0, 100)}...`);
+        // Extract email content for analysis
+        const emailContent = (parsedEmail.text || '').toLowerCase();
+        console.log(`📄 Email content preview: ${emailContent.substring(0, 100)}...`);
 
-// Check if this is a response to one of our applications
-const applicationMatch = await db.collection('applications').findOne({
-  userId: userId,
-  $or: [
-    { employerEmail: { $regex: from, $options: 'i' } },
-    { 'emailData.to': { $regex: from, $options: 'i' } }
-  ]
-});
+        // Check if this is a response to one of our applications
+        const applicationMatch = await db.collection('applications').findOne({
+          userId: userId,
+          $or: [
+            { employerEmail: { $regex: from, $options: 'i' } },
+            { 'emailData.to': { $regex: from, $options: 'i' } }
+          ]
+        });
 
-if (applicationMatch) {
-  console.log(`🎯 Found matching application for job: ${applicationMatch.jobTitle}`);
-  
-  // Analyze email content for positive/negative response
-  const positiveKeywords = ["congratulation", "interview", "next step", "selected", "welcome", "offer", "opportunity", "interested"];
-  const negativeKeywords = ["unfortunately", "not selected", "reject", "decline", "not move forward", "other candidate"];
-  
-  const isPositive = positiveKeywords.some(keyword => emailContent.includes(keyword));
-  const isNegative = negativeKeywords.some(keyword => emailContent.includes(keyword));
-  
-  let responseType = 'unknown';
-  if (isPositive) {
-    responseType = 'positive';
-    positiveResponses++;
-  } else if (isNegative) {
-    responseType = 'negative';
-    negativeResponses++;
-  }
-  
-  console.log(`📊 Response type: ${responseType}`);
-  
-  // Store the response in database
-  const responseData = {
-    userId: userId,
-    applicationId: applicationMatch._id.toString(),
-    jobId: applicationMatch.jobId,
-    employer: from,
-    subject: subject,
-    content: emailContent,
-    responseType: responseType,
-    receivedAt: new Date(),
-    processed: true
-  };
-  
-  await collection.insertOne(responseData);
-  console.log(`💾 Response stored in database with type: ${responseType}`);
-  
-  // Send real-time update via WebSocket if client is connected
-  const wsClient = clients.get(userId);
-  if (wsClient && wsClient.readyState === 1) {
-    wsClient.send(JSON.stringify({
-      type: 'email_response',
-      data: {
-        applicationId: applicationMatch._id.toString(),
-        jobId: applicationMatch.jobId,
-        jobTitle: applicationMatch.jobTitle,
-        employer: from,
-        subject: subject,
-        responseType: responseType,
-        timestamp: new Date().toISOString()
-      }
-    }));
-    console.log(`📡 WebSocket update sent for user: ${userId}`);
-  }
-  
-  // Update application status based on response
-  let newStatus = applicationMatch.status;
-  if (isPositive) {
-    newStatus = 'response_received';
-    // If it's clearly a positive response, update accordingly
-    if (emailContent.includes('interview') || emailContent.includes('next step')) {
-      newStatus = 'interview_stage';
-    }
-  } else if (isNegative) {
-    newStatus = 'rejected';
-  }
-  
-  if (newStatus !== applicationMatch.status) {
-    await db.collection('applications').updateOne(
-      { _id: applicationMatch._id },
-      { $set: { status: newStatus, lastUpdated: new Date() } }
-    );
-    console.log(`🔄 Application status updated to: ${newStatus}`);
-  }
-} else {
-  console.log('ℹ️ Email does not match any known applications');
-}
+        if (applicationMatch) {
+          console.log(`🎯 Found matching application for job: ${applicationMatch.jobTitle}`);
+          
+          // Analyze email content for positive/negative response
+          const positiveKeywords = ["congratulation", "interview", "next step", "selected", "welcome", "offer", "opportunity", "interested"];
+          const negativeKeywords = ["unfortunately", "not selected", "reject", "decline", "not move forward", "other candidate"];
+          
+          const isPositive = positiveKeywords.some(keyword => emailContent.includes(keyword));
+          const isNegative = negativeKeywords.some(keyword => emailContent.includes(keyword));
+          
+          let responseType = 'unknown';
+          if (isPositive) {
+            responseType = 'positive';
+            positiveResponses++;
+          } else if (isNegative) {
+            responseType = 'negative';
+            negativeResponses++;
+          }
+          
+          console.log(`📊 Response type: ${responseType}`);
+          
+          // Store the response in database
+          const responseData = {
+            userId: userId,
+            applicationId: applicationMatch._id.toString(),
+            jobId: applicationMatch.jobId,
+            employer: from,
+            subject: subject,
+            content: emailContent,
+            responseType: responseType,
+            receivedAt: new Date(),
+            processed: true
+          };
+          
+          await collection.insertOne(responseData);
+          console.log(`💾 Response stored in database with type: ${responseType}`);
+          
+          // Send real-time update via WebSocket if client is connected
+          const wsClient = clients.get(userId);
+          if (wsClient && wsClient.readyState === 1) {
+            wsClient.send(JSON.stringify({
+              type: 'email_response',
+              data: {
+                applicationId: applicationMatch._id.toString(),
+                jobId: applicationMatch.jobId,
+                jobTitle: applicationMatch.jobTitle,
+                employer: from,
+                subject: subject,
+                responseType: responseType,
+                timestamp: new Date().toISOString()
+              }
+            }));
+            console.log(`📡 WebSocket update sent for user: ${userId}`);
+          }
+          
+          // Update application status based on response
+          let newStatus = applicationMatch.status;
+          if (isPositive) {
+            newStatus = 'response_received';
+            // If it's clearly a positive response, update accordingly
+            if (emailContent.includes('interview') || emailContent.includes('next step')) {
+              newStatus = 'interview_stage';
+            }
+          } else if (isNegative) {
+            newStatus = 'rejected';
+          }
+          
+          if (newStatus !== applicationMatch.status) {
+            await db.collection('applications').updateOne(
+              { _id: applicationMatch._id },
+              { $set: { status: newStatus, lastUpdated: new Date() } }
+            );
+            console.log(`🔄 Application status updated to: ${newStatus}`);
+          }
+        } else {
+          console.log('ℹ️ Email does not match any known applications');
+        }
 
       } catch (parseError) {
         console.error('❌ Error parsing email:', parseError);
@@ -1753,7 +1758,6 @@ if (applicationMatch) {
   }
 });
 
-// Enhanced handle-response with debugging - NOW SAVES ALL PARAMETERS
 // Enhanced handle-response with userId trimming fix
 app.get('/handle-response', async (req, res) => {
   // Extract all parameters with default values and trim whitespace
@@ -1839,301 +1843,305 @@ app.get('/handle-response', async (req, res) => {
 
     // Immediate response check
     console.log('🚀 Triggering immediate response check...');
-    try {
-      const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
-      console.log('✅ Immediate check completed:', checkResult);
+    const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
+    console.log('✅ Immediate check completed:', checkResult);
 
-      // Update the record as processed
-      await db.collection('user_application_response').updateOne(
-        { _id: insertResult.insertedId },
-        { $set: { processed: true, processedAt: new Date() } }
-      );
-      console.log('✅ Response marked as processed');
+    // Update the record as processed
+    await db.collection('user_application_response').updateOne(
+      { _id: insertResult.insertedId },
+      { $set: { processed: true, processedAt: new Date() } }
+    );
+    console.log('✅ Response marked as processed');
 
-      // 🔥 WEB SOCKET NOTIFICATION: Notify frontend that data is ready
-      io.emit('dataReady', {
-        userId: trimmedUserId,
-        jobId: trimmedJobId,
-        emailId: trimmedEmailId,
-        responseId: insertResult.insertedId,
-        message: 'Application response processed and data is ready for retrieval',
-        timestamp: new Date().toISOString()
-      });
-      console.log('📢 WebSocket notification sent to frontend');
+    // 🔥 WEB SOCKET NOTIFICATION: Notify frontend that data is ready
+    const payload = {
+      userId: trimmedUserId,
+      jobId: trimmedJobId,
+      emailId: trimmedEmailId,
+      responseId: insertResult.insertedId,
+      message: 'Application response processed and data is ready for retrieval',
+      timestamp: new Date().toISOString()
+    };
 
-    } catch (checkError) {
-      console.error('❌ Error in immediate response check:', checkError);
-      // Don't fail the request, just log the error
-    }
+    wss.clients.forEach(client => {
+      if (client.readyState === client.OPEN) {
+        client.send(JSON.stringify(payload));
+      }
+    });
+
+    console.log('📢 WebSocket notification sent to all connected clients');
 
     await mongoClient.close();
     console.log('✅ MongoDB connection closed');
 
     // Send success response
     console.log('📤 Sending HTML response to client');
+    
+    // REPLACE THE HTML CONTENT HERE
     res.send(
       `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Success</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Success</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-    body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-      margin: 0;
-      padding: 20px;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
+  .container {
+    max-width: 500px;
+    margin: 50px auto;
+    background: white;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .circle {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    border-radius: 50%;
+    margin: 0 auto 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 32px rgba(34, 197, 94, 0.25);
+    position: relative;
+    animation: scaleIn 0.6s ease-out 0.3s both;
+  }
+
+  .circle::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    border-radius: 50%;
+    z-index: -1;
+    opacity: 0.3;
+    animation: pulse 2s ease-in-out 1s infinite;
+  }
+
+  @keyframes scaleIn {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.3; }
+    50% { transform: scale(1.05); opacity: 0.6; }
+  }
+
+  .tick {
+    color: white;
+    font-size: 36px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.5s ease 0.8s;
+  }
+
+  h1 {
+    color: #1f2937;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 15px;
+  }
+
+  p {
+    color: #6b7280;
+    font-size: 16px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  .button-row {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin: 30px 0;
+  }
+
+  .btn {
+    padding: 14px 28px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    transition: left 0.6s;
+  }
+
+  .btn:hover::before {
+    left: 100%;
+  }
+
+  .btn-green {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  }
+
+  .btn-green:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+  }
+
+  .btn-purple {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+  }
+
+  .btn-purple:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+  }
+
+  .footer {
+    margin-top: 30px;
+    color: #9ca3af;
+    font-size: 14px;
+  }
+
+  /* Responsive design */
+  @media (max-width: 480px) {
     .container {
-      max-width: 500px;
-      margin: 50px auto;
-      background: white;
-      padding: 40px;
-      border-radius: 20px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-      text-align: center;
-      border: 1px solid rgba(0, 0, 0, 0.05);
+      margin: 20px;
+      padding: 32px 24px;
     }
-
-    .circle {
-      width: 100px;
-      height: 100px;
-      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-      border-radius: 50%;
-      margin: 0 auto 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 8px 32px rgba(34, 197, 94, 0.25);
-      position: relative;
-      animation: scaleIn 0.6s ease-out 0.3s both;
-    }
-
-    .circle::before {
-      content: '';
-      position: absolute;
-      inset: -3px;
-      background: linear-gradient(135deg, #22c55e, #16a34a);
-      border-radius: 50%;
-      z-index: -1;
-      opacity: 0.3;
-      animation: pulse 2s ease-in-out 1s infinite;
-    }
-
-    @keyframes scaleIn {
-      from { transform: scale(0); }
-      to { transform: scale(1); }
-    }
-
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 0.3; }
-      50% { transform: scale(1.05); opacity: 0.6; }
-    }
-
-    .tick {
-      color: white;
-      font-size: 36px;
-      font-weight: 600;
-      opacity: 0;
-      transition: opacity 0.5s ease 0.8s;
-    }
-
-    h1 {
-      color: #1f2937;
-      font-size: 28px;
-      font-weight: 700;
-      margin-bottom: 15px;
-    }
-
-    p {
-      color: #6b7280;
-      font-size: 16px;
-      margin-bottom: 20px;
-      line-height: 1.5;
-    }
-
+    
     .button-row {
-      display: flex;
-      gap: 15px;
-      justify-content: center;
-      margin: 30px 0;
+      flex-direction: column;
+      gap: 12px;
     }
-
+    
     .btn {
-      padding: 14px 28px;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 15px;
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .btn::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
       width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-      transition: left 0.6s;
     }
+    
+    h1 {
+      font-size: 24px;
+    }
+  }
 
-    .btn:hover::before {
-      left: 100%;
-    }
-
-    .btn-green {
-      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-      color: white;
-      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-    }
-
-    .btn-green:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
-    }
-
-    .btn-purple {
-      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-      color: white;
-      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-    }
-
-    .btn-purple:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
-    }
-
-    .footer {
-      margin-top: 30px;
-      color: #9ca3af;
-      font-size: 14px;
-    }
-
-    /* Responsive design */
-    @media (max-width: 480px) {
-      .container {
-        margin: 20px;
-        padding: 32px 24px;
-      }
-      
-      .button-row {
-        flex-direction: column;
-        gap: 12px;
-      }
-      
-      .btn {
-        width: 100%;
-      }
-      
-      h1 {
-        font-size: 24px;
-      }
-    }
-
-    .exit-message {
-      display: none;
-      text-align: center;
-      padding: 50px;
-      font-family: sans-serif;
-    }
-  </style>
+  .exit-message {
+    display: none;
+    text-align: center;
+    padding: 50px;
+    font-family: sans-serif;
+  }
+</style>
 </head>
 <body>
-  <div class="container">
-    <div class="circle">
-      <div class="tick">✔</div>
-    </div>
-    <h1>Excellent Choice!</h1>
-    <p>We've received your response and will now proceed with your application.</p>
-    <div class="button-row">
-      <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
-        Auto-Apply
-      </button>
-      <button class="btn btn-purple" onclick="exitPage()">
-        Exit
-      </button>
-    </div>
-    <div class="footer">
-      Powered by <strong>IntelliJob</strong> from Suntrenia
-    </div>
+<div class="container">
+  <div class="circle">
+    <div class="tick">✔</div>
   </div>
-
-  <div class="exit-message">
-    <h2>You can safely close this tab now</h2>
-    <p>Thank you for using IntelliJob!</p>
+  <h1>Excellent Choice!</h1>
+  <p>We've received your response and will now proceed with your application.</p>
+  <div class="button-row">
+    <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
+      Auto-Apply
+    </button>
+    <button class="btn btn-purple" onclick="exitPage()">
+      Exit
+    </button>
   </div>
+  <div class="footer">
+    Powered by <strong>IntelliJob</strong> from Suntrenia
+  </div>
+</div>
 
-  <script>
-    console.log('Response processed successfully');
+<div class="exit-message">
+  <h2>You can safely close this tab now</h2>
+  <p>Thank you for using IntelliJob!</p>
+</div>
+
+<script>
+  console.log('Response processed successfully');
+  
+  // Animate tick appearance
+  setTimeout(() => {
+    document.querySelector('.tick').style.opacity = '1';
+  }, 800);
+  
+  // Exit function
+  function exitPage() {
+    // Hide main container
+    document.querySelector('.container').style.display = 'none';
     
-    // Animate tick appearance
+    // Show exit message
+    document.querySelector('.exit-message').style.display = 'block';
+    
+    // Try different exit methods
     setTimeout(() => {
-      document.querySelector('.tick').style.opacity = '1';
-    }, 800);
-    
-    // Exit function
-    function exitPage() {
-      // Hide main container
-      document.querySelector('.container').style.display = 'none';
+      try {
+        // Method 1: Try to close window
+        window.close();
+      } catch (e) {
+        console.log('Cannot close window');
+      }
       
-      // Show exit message
-      document.querySelector('.exit-message').style.display = 'block';
-      
-      // Try different exit methods
+      // Method 2: Try history back
       setTimeout(() => {
         try {
-          // Method 1: Try to close window
-          window.close();
-        } catch (e) {
-          console.log('Cannot close window');
-        }
-        
-        // Method 2: Try history back
-        setTimeout(() => {
-          try {
-            if (window.history.length > 1) {
-              window.history.back();
-            }
-          } catch (e) {
-            console.log('Cannot go back');
+          if (window.history.length > 1) {
+            window.history.back();
           }
-        }, 500);
-      }, 1000);
-    }
-    
-    // Add button interaction feedback
-    document.querySelectorAll('.btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        this.style.transform = 'scale(0.95) translateY(-1px)';
-        setTimeout(() => {
-          this.style.transform = '';
-        }, 150);
-      });
+        } catch (e) {
+          console.log('Cannot go back');
+        }
+      }, 500);
+    }, 1000);
+  }
+  
+  // Add button interaction feedback
+  document.querySelectorAll('.btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      this.style.transform = 'scale(0.95) translateY(-1px)';
+      setTimeout(() => {
+        this.style.transform = '';
+      }, 150);
     });
-  </script>
+  });
+</script>
 </body>
 </html>`
     );
 
+    
   } catch (err) {
-    console.error('❌ CRITICAL ERROR in handle-response:', err);
+    console.error('❌ ERROR in handle-response:', err);
     console.error('Stack trace:', err.stack);
     
     if (mongoClient) {
@@ -2151,6 +2159,7 @@ app.get('/handle-response', async (req, res) => {
     );
   }
 });
+
 // Enhanced helper function
 async function checkForResponsesImmediately(userId, emailId, jobId) {
   // Trim parameters to ensure consistency
