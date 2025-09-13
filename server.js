@@ -1364,6 +1364,9 @@
 
 
 
+
+
+
 const WebSocket = require('ws');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
@@ -1855,11 +1858,12 @@ app.get('/handle-response', async (req, res) => {
 
     // 🔥 WEB SOCKET NOTIFICATION: Notify frontend that data is ready
     const payload = {
+      type: trimmedResponse.toLowerCase(),   // 👈 dynamically set as 'proceed' or 'declined'
       userId: trimmedUserId,
       jobId: trimmedJobId,
       emailId: trimmedEmailId,
       responseId: insertResult.insertedId,
-      message: 'Application response processed and data is ready for retrieval',
+      message: `User selected "${trimmedResponse}" for the application`,
       timestamp: new Date().toISOString()
     };
 
@@ -1868,7 +1872,6 @@ app.get('/handle-response', async (req, res) => {
         client.send(JSON.stringify(payload));
       }
     });
-
     console.log('📢 WebSocket notification sent to all connected clients');
 
     await mongoClient.close();
@@ -1880,263 +1883,334 @@ app.get('/handle-response', async (req, res) => {
     // REPLACE THE HTML CONTENT HERE
     res.send(
       `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Success</title>
-<style>
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-
-  body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-    margin: 0;
-    padding: 20px;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .container {
-    max-width: 500px;
-    margin: 50px auto;
-    background: white;
-    padding: 40px;
-    border-radius: 20px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-    text-align: center;
-    border: 1px solid rgba(0, 0, 0, 0.05);
-  }
-
-  .circle {
-    width: 100px;
-    height: 100px;
-    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-    border-radius: 50%;
-    margin: 0 auto 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 8px 32px rgba(34, 197, 94, 0.25);
-    position: relative;
-    animation: scaleIn 0.6s ease-out 0.3s both;
-  }
-
-  .circle::before {
-    content: '';
-    position: absolute;
-    inset: -3px;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    border-radius: 50%;
-    z-index: -1;
-    opacity: 0.3;
-    animation: pulse 2s ease-in-out 1s infinite;
-  }
-
-  @keyframes scaleIn {
-    from { transform: scale(0); }
-    to { transform: scale(1); }
-  }
-
-  @keyframes pulse {
-    0%, 100% { transform: scale(1); opacity: 0.3; }
-    50% { transform: scale(1.05); opacity: 0.6; }
-  }
-
-  .tick {
-    color: white;
-    font-size: 36px;
-    font-weight: 600;
-    opacity: 0;
-    transition: opacity 0.5s ease 0.8s;
-  }
-
-  h1 {
-    color: #1f2937;
-    font-size: 28px;
-    font-weight: 700;
-    margin-bottom: 15px;
-  }
-
-  p {
-    color: #6b7280;
-    font-size: 16px;
-    margin-bottom: 20px;
-    line-height: 1.5;
-  }
-
-  .button-row {
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-    margin: 30px 0;
-  }
-
-  .btn {
-    padding: 14px 28px;
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 15px;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-    transition: left 0.6s;
-  }
-
-  .btn:hover::before {
-    left: 100%;
-  }
-
-  .btn-green {
-    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-    color: white;
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-  }
-
-  .btn-green:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
-  }
-
-  .btn-purple {
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-    color: white;
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-  }
-
-  .btn-purple:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
-  }
-
-  .footer {
-    margin-top: 30px;
-    color: #9ca3af;
-    font-size: 14px;
-  }
-
-  /* Responsive design */
-  @media (max-width: 480px) {
-    .container {
-      margin: 20px;
-      padding: 32px 24px;
-    }
-    
-    .button-row {
-      flex-direction: column;
-      gap: 12px;
-    }
-    
-    .btn {
-      width: 100%;
-    }
-    
-    h1 {
-      font-size: 24px;
-    }
-  }
-
-  .exit-message {
-    display: none;
-    text-align: center;
-    padding: 50px;
-    font-family: sans-serif;
-  }
-</style>
-</head>
-<body>
-<div class="container">
-  <div class="circle">
-    <div class="tick">✔</div>
-  </div>
-  <h1>Excellent Choice!</h1>
-  <p>We've received your response and will now proceed with your application.</p>
-  <div class="button-row">
-    <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
-      Auto-Apply
-    </button>
-    <button class="btn btn-purple" onclick="exitPage()">
-      Exit
-    </button>
-  </div>
-  <div class="footer">
-    Powered by <strong>IntelliJob</strong> from Suntrenia
-  </div>
-</div>
-
-<div class="exit-message">
-  <h2>You can safely close this tab now</h2>
-  <p>Thank you for using IntelliJob!</p>
-</div>
-
-<script>
-  console.log('Response processed successfully');
-  
-  // Animate tick appearance
-  setTimeout(() => {
-    document.querySelector('.tick').style.opacity = '1';
-  }, 800);
-  
-  // Exit function
-  function exitPage() {
-    // Hide main container
-    document.querySelector('.container').style.display = 'none';
-    
-    // Show exit message
-    document.querySelector('.exit-message').style.display = 'block';
-    
-    // Try different exit methods
-    setTimeout(() => {
-      try {
-        // Method 1: Try to close window
-        window.close();
-      } catch (e) {
-        console.log('Cannot close window');
-      }
-      
-      // Method 2: Try history back
-      setTimeout(() => {
-        try {
-          if (window.history.length > 1) {
-            window.history.back();
-          }
-        } catch (e) {
-          console.log('Cannot go back');
+      <html lang="en">
+      <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Success</title>
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
         }
-      }, 500);
-    }, 1000);
-  }
-  
-  // Add button interaction feedback
-  document.querySelectorAll('.btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      this.style.transform = 'scale(0.95) translateY(-1px)';
-      setTimeout(() => {
-        this.style.transform = '';
-      }, 150);
-    });
-  });
-</script>
-</body>
-</html>`
+      
+        body {
+          font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+          background-size: 300% 300%;
+          animation: gradientShift 6s ease infinite;
+          margin: 0;
+          padding: 20px;
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+      
+        @keyframes gradientShift {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+      
+        .container {
+          max-width: 500px;
+          margin: 50px auto;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          padding: 40px;
+          border-radius: 24px;
+          box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+          text-align: center;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          animation: containerFloat 0.8s ease-out;
+        }
+      
+        @keyframes containerFloat {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      
+        .circle {
+          width: 100px;
+          height: 100px;
+          background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
+          border-radius: 50%;
+          margin: 0 auto 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 15px 35px rgba(0, 200, 81, 0.3);
+          position: relative;
+          animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s both;
+        }
+      
+        .circle::before {
+          content: '';
+          position: absolute;
+          inset: -4px;
+          background: linear-gradient(135deg, #00c851, #007e33);
+          border-radius: 50%;
+          z-index: -1;
+          opacity: 0.4;
+          animation: ripple 2.5s ease-in-out 1s infinite;
+        }
+      
+        @keyframes bounceIn {
+          from { transform: scale(0) rotate(180deg); }
+          to { transform: scale(1) rotate(0deg); }
+        }
+      
+        @keyframes ripple {
+          0%, 100% { transform: scale(1); opacity: 0.4; }
+          50% { transform: scale(1.15); opacity: 0.7; }
+        }
+      
+        .tick {
+          color: white;
+          font-size: 38px;
+          font-weight: bold;
+          opacity: 0;
+          animation: tickReveal 0.6s ease 1s both;
+        }
+      
+        @keyframes tickReveal {
+          from { opacity: 0; transform: scale(0.5) rotate(-45deg); }
+          to { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+      
+        h1 {
+          color: #1a202c;
+          font-size: 32px;
+          font-weight: 800;
+          margin-bottom: 15px;
+          animation: slideUp 0.6s ease 0.4s both;
+        }
+      
+        p {
+          color: #4a5568;
+          font-size: 17px;
+          margin-bottom: 20px;
+          line-height: 1.6;
+          animation: slideUp 0.6s ease 0.6s both;
+        }
+      
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      
+        .button-row {
+          display: flex;
+          gap: 20px;
+          margin: 35px 0;
+          animation: slideUp 0.6s ease 0.8s both;
+        }
+      
+        .btn {
+          flex: 1;
+          padding: 16px 20px;
+          border: none;
+          border-radius: 16px;
+          cursor: pointer;
+          font-weight: 700;
+          font-size: 15px;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+          overflow: hidden;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+      
+        .btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+          transition: left 0.5s;
+        }
+      
+        .btn:hover::before {
+          left: 100%;
+        }
+      
+        .btn:active {
+          transform: scale(0.98);
+        }
+      
+        .btn-green {
+          background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
+          color: white;
+          box-shadow: 0 8px 20px rgba(0, 200, 81, 0.35);
+          position: relative;
+        }
+      
+        .btn-green::after {
+          content: "Enable for future applications";
+          position: absolute;
+          bottom: -35px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0, 0, 0, 0.8);
+          color: white;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 11px;
+          white-space: nowrap;
+          opacity: 0;
+          transition: opacity 0.3s;
+          pointer-events: none;
+          font-weight: 500;
+          text-transform: none;
+          letter-spacing: 0;
+        }
+      
+        .btn-green:hover::after {
+          opacity: 1;
+        }
+      
+        .btn-green:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 25px rgba(0, 200, 81, 0.45);
+        }
+      
+        .btn-purple {
+          background: linear-gradient(135deg, #6c5ce7 0%, #5a4fcf 100%);
+          color: white;
+          box-shadow: 0 8px 20px rgba(108, 92, 231, 0.35);
+        }
+      
+        .btn-purple:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 25px rgba(108, 92, 231, 0.45);
+        }
+      
+        .footer {
+          margin-top: 35px;
+          color: #718096;
+          font-size: 14px;
+          animation: slideUp 0.6s ease 1s both;
+        }
+      
+        .footer strong {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+      
+        @media (max-width: 480px) {
+          .container {
+            margin: 20px;
+            padding: 32px 24px;
+          }
+          
+          .button-row {
+            flex-direction: column;
+            gap: 16px;
+          }
+          
+          .btn-green::after {
+            bottom: -30px;
+            font-size: 10px;
+          }
+          
+          h1 {
+            font-size: 26px;
+          }
+        }
+      
+        .exit-message {
+          display: none;
+          text-align: center;
+          padding: 60px 40px;
+          font-family: sans-serif;
+          color: white;
+          animation: fadeIn 0.5s ease;
+        }
+      
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+      
+        .exit-message h2 {
+          font-size: 28px;
+          margin-bottom: 15px;
+          text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+      
+        .exit-message p {
+          font-size: 18px;
+          opacity: 0.9;
+        }
+      </style>
+      </head>
+      <body>
+      <div class="container">
+        <div class="circle">
+          <div class="tick">✓</div>
+        </div>
+        <h1>Excellent Choice!</h1>
+        <p>We've received your response and will now proceed with your application.</p>
+        <div class="button-row">
+          <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
+            Auto-Apply
+          </button>
+          <button class="btn btn-purple" onclick="exitPage()">
+            Exit
+          </button>
+        </div>
+        <div class="footer">
+          Powered by <strong>IntelliJob</strong> from Suntrenia
+        </div>
+      </div>
+      
+      <div class="exit-message">
+        <h2>You can safely close this tab now</h2>
+        <p>Thank you for using IntelliJob!</p>
+      </div>
+      
+      <script>
+        console.log('Response processed successfully');
+        
+        function exitPage() {
+          document.querySelector('.container').style.display = 'none';
+          document.querySelector('.exit-message').style.display = 'block';
+          
+          setTimeout(() => {
+            try {
+              window.close();
+            } catch (e) {
+              console.log('Cannot close window');
+            }
+            
+            setTimeout(() => {
+              try {
+                if (window.history.length > 1) {
+                  window.history.back();
+                }
+              } catch (e) {
+                console.log('Cannot go back');
+              }
+            }, 500);
+          }, 1000);
+        }
+        
+        document.querySelectorAll('.btn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            this.style.transform = 'scale(0.98) translateY(-3px)';
+            setTimeout(() => {
+              this.style.transform = '';
+            }, 150);
+          });
+        });
+      </script>
+      </body>
+      </html>`
     );
 
     
