@@ -1,1370 +1,3 @@
-//const express = require('express');
-// const { MongoClient } = require('mongodb');
-// const dotenv = require('dotenv').config();
-// const cors = require('cors');
-// const helmet = require('helmet');
-// const rateLimit = require('express-rate-limit');
-
-// const app = express();
-// const PORT = process.env.PORT || 3000;
-
-// // Middleware
-// app.use(cors());
-// app.use(helmet());
-// app.use(express.json());
-// app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-
-// // Test route
-// app.get('/', (req, res) => {
-//   res.send('🟢 Backend is running (CommonJS)');
-// });
-
-// // Handle email responses
-// app.get('/handle-response', async (req, res) => {
-//   const { response, emailId, jobId } = req.query;
-//   console.log('📩 Received:', { response, emailId, jobId });
-
-//   try {
-
-//     const client = new MongoClient(process.env.MONGODB_URI);
-//     await client.connect();
-//     const db = client.db('suntrenia');
-//     await db.collection('responses').insertOne({
-//       response,
-//       emailId,
-//       jobId,
-//       timestamp: new Date()
-//     });
-//     await client.close();
-
-
-//     res.send(`
-//       <h1>✅ Success!</h1>
-//       <p>Recorded: ${response} (job ${jobId})</p>
-//     `);
-//   } catch (err) {
-//     console.error('❌ MongoDB Error:', err);
-//     res.status(500).send('Database error');
-//   }
-// });
-
-// app.listen(PORT, () => {
-//   console.log(`🚀 Server running on http://localhost:${PORT}`);
-// });
-
-
-
-
-
-
-
-
-
-
-
-
-
-// const express = require('express');
-// const { MongoClient } = require('mongodb');
-// const dotenv = require('dotenv').config();
-// const cors = require('cors');
-// const helmet = require('helmet');
-// const rateLimit = require('express-rate-limit');
-
-// const app = express();
-// const PORT = process.env.PORT || 3000;
-
-// // Middleware
-// app.use(cors());
-// app.use(helmet());
-// app.use(express.json());
-// app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-
-// // Test route
-// app.get('/', (req, res) => {
-//   res.send('🟢 Backend is running (CommonJS)');
-// });
-
-// // Handle email responses
-// app.get('/handle-response', async (req, res) => {
-//   const { response, emailId, jobId } = req.query;
-//   console.log('📩 Received:', { response, emailId, jobId });
-
-//   try {
-//     const client = new MongoClient(process.env.MONGODB_URI);
-//     await client.connect();
-
-//     const db = client.db('olukayode_sage');
-//     // ✅ Store the insert result in a variable
-//     const insertResult = await db.collection('user_application_response').insertOne({
-//       response,
-//       emailId,
-//       jobId,
-//       timestamp: new Date()
-//     });
-
-//     console.log('Insert result:', insertResult);
-//     console.log("Checking for responses now...");
-
-//     // [ADDED] Check for responses - only if function exists
-//     try {
-//       if (typeof checkForResponses === 'function') {
-//         // Use emailId and jobId from query, generate userId fallback
-//         const userId = 'default_user_id'; // Simplified like local version approach
-//         await checkForResponses(userId, emailId, jobId);
-//       } else {
-//         console.log('checkForResponses function not available in this environment');
-//       }
-//     } catch (error) {
-//       console.error('Error in checkForResponses:', error);
-//     }
-
-//     await client.close();
-
-// res.send(`
-//   <!DOCTYPE html>
-//   <html lang="en">
-//   <head>
-//     <meta charset="UTF-8" />
-//     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-//     <title>Success</title>
-//     <style>
-//       body {
-//         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-//         display: flex;
-//         justify-content: center;
-//         align-items: center;
-//         height: 100vh;
-//         background: #f4fdf6;
-//         margin: 0;
-//       }
-//       .container {
-//         text-align: center;
-//         animation: fadeIn 1s ease-in-out;
-//         max-width: 350px;
-//       }
-//       .circle {
-//         width: 100px;
-//         height: 100px;
-//         background: #a3e635;
-//         border-radius: 50%;
-//         display: flex;
-//         justify-content: center;
-//         align-items: center;
-//         margin: 0 auto 20px;
-//         animation: pop 0.6s ease forwards;
-//       }
-//       .tick {
-//         font-size: 48px;
-//         color: white;
-//         animation: scaleUp 0.5s ease forwards 0.5s;
-//         opacity: 0;
-//       }
-//       h1 {
-//         font-size: 1.8rem;
-//         color: #166534;
-//         margin-bottom: 10px;
-//       }
-//       p {
-//         font-size: 1rem;
-//         color: #4b5563;
-//         margin-bottom: 25px;
-//       }
-//       .btn {
-//         width: 200px;
-//         padding: 12px;
-//         border-radius: 25px;
-//         border: none;
-//         cursor: pointer;
-//         font-size: 0.95rem;
-//         margin: 8px auto;
-//         display: block;
-//         transition: transform 0.2s ease, background 0.3s ease;
-//       }
-//       .btn:hover {
-//         transform: scale(1.05);
-//       }
-//       .btn-green {
-//         background: #22c55e;
-//         color: white;
-//       }
-//       .btn-green:hover {
-//         background: #16a34a;
-//       }
-//       .btn-red {
-//         background: #ef4444;
-//         color: white;
-//       }
-//       .btn-red:hover {
-//         background: #dc2626;
-//       }
-//       .footer {
-//         margin-top: 30px;
-//         font-size: 0.8rem;
-//         color: #6b7280;
-//       }
-//       @keyframes fadeIn {
-//         from { opacity: 0; }
-//         to { opacity: 1; }
-//       }
-//       @keyframes pop {
-//         0% { transform: scale(0.5); opacity: 0; }
-//         100% { transform: scale(1); opacity: 1; }
-//       }
-//       @keyframes scaleUp {
-//         to { transform: scale(1.1); opacity: 1; }
-//       }
-//     </style>
-//   </head>
-//   <body>
-//     <div class="container">
-//       <div class="circle">
-//         <div class="tick">✔</div>
-//       </div>
-//       <h1>Good Choice</h1>
-//       <p>We will now proceed with your application.</p>
-//       <button class="btn btn-green" onclick="alert('Auto-Apply enabled ✅. We’ll handle future applications for you ✨')">
-//         Enable Auto-Apply (next time)
-//       </button>
-//       <button class="btn btn-red" onclick="window.close()">
-//         Exit
-//       </button>
-//       <div class="footer">
-//         IntelliJob from <strong>Suntrenia</strong>
-//       </div>
-//     </div>
-//     <script>
-//       // Reveal tick after circle pops
-//       setTimeout(() => {
-//         document.querySelector('.tick').style.opacity = '1';
-//       }, 600);
-//     </script>
-//   </body>
-//   </html>
-// `);
-
-
-//   } catch (err) {
-//     console.error('❌ MongoDB Error:', err);
-//     res.status(500).send('Database error');
-//   }
-// });
-
-// app.listen(PORT, () => {
-//   console.log(`🚀 Server running on http://localhost:${PORT}`);
-// });
-
-
-
-// const express = require('express');
-// const { MongoClient, ObjectId } = require('mongodb');
-// const dotenv = require('dotenv').config();
-// const cors = require('cors');
-// const helmet = require('helmet');
-// const rateLimit = require('express-rate-limit');
-// const imaps = require('imap-simple');
-// const { simpleParser } = require('mailparser');
-// const nodemailer = require('nodemailer');
-
-// const app = express();
-// const PORT = process.env.PORT || 3000;
-
-// // SMTP Configuration for SENDING emails
-// const transporter = nodemailer.createTransport({
-//   host: process.env.SMTP_HOST || "smtp.gmail.com",
-//   port: parseInt(process.env.SMTP_PORT) || 587,
-//   secure: process.env.SMTP_SECURE === "true",
-//   auth: {
-//     user: process.env.SMTP_USER,
-//     pass: process.env.SMTP_PASSWORD,
-//   },
-// });
-
-// // IMAP Configuration for READING emails
-// const imapConfig = {
-//   imap: {
-//     user: process.env.IMAP_USER,
-//     password: process.env.IMAP_PASSWORD,
-//     host: process.env.IMAP_HOST || "imap.gmail.com",
-//     port: parseInt(process.env.IMAP_PORT) || 993,
-//     tls: true,
-//     tlsOptions: { rejectUnauthorized: false }
-//   }
-// };
-
-// // Middleware
-// app.use(cors());
-// app.use(helmet());
-// app.use(express.json());
-// app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-
-// // Test route
-// app.get('/', (req, res) => {
-//   res.send('🟢 Backend is running with environment variables');
-// });
-
-// // Real checkForResponses function (now as an endpoint)
-// app.get('/check-responses', async (req, res) => {
-//   const { userId, emailId, jobId } = req.query;
-
-//   console.log('🔍 Checking responses with:', { userId, emailId, jobId });
-
-//   if (!userId) {
-//     return res.status(400).json({ error: 'userId is required' });
-//   }
-
-//   let connection;
-//   let mongoClient;
-
-//   try {
-//     console.log(`Starting response check for user: ${userId}`);
-
-//     // Connect to IMAP server
-//     connection = await imaps.connect(imapConfig);
-//     await connection.openBox('INBOX');
-
-//     // Search for unread emails
-//     const searchCriteria = ['UNSEEN'];
-//     const fetchOptions = { bodies: ['HEADER', 'TEXT'], markSeen: true };
-
-//     const messages = await connection.search(searchCriteria, fetchOptions);
-
-//     if (messages.length === 0) {
-//       console.log('No new responses found.');
-//       await connection.end();
-//       return res.json({ success: true, responsesFound: 0, message: 'No new responses' });
-//     }
-
-//     // Connect to MongoDB
-//     mongoClient = new MongoClient(process.env.MONGODB_URI);
-//     await mongoClient.connect();
-//     const db = mongoClient.db('olukayode_sage');
-//     const collection = db.collection('user_application_response');
-
-//     let processedCount = 0;
-//     let positiveResponses = 0;
-//     let negativeResponses = 0;
-
-//     // Process each email
-//     for (const message of messages) {
-//       const textPart = message.parts.find(part => part.which === 'TEXT');
-//       const id = message.attributes.uid;
-//       const rawMessage = textPart?.body;
-
-//       if (!rawMessage) {
-//         console.log('No message body found for this email.');
-//         continue;
-//       }
-
-//       // Parse the email
-//       const parsedEmail = await simpleParser(rawMessage);
-//       const from = parsedEmail.from?.text || 'Unknown sender';
-//       const subject = parsedEmail.subject || 'No subject';
-//       const textBody = parsedEmail.text || 'No message body';
-
-//       console.log(`New response from: ${from}`);
-//       console.log(`Subject: ${subject}`);
-
-//       // Extract user response from email
-//       let normalizedTextBody = textBody.toLowerCase();
-//       normalizedTextBody = normalizedTextBody.replace(/<\/?[^>]+(>|$)/g, "");
-//       normalizedTextBody = normalizedTextBody.replace(/\s+/g, ' ').trim();
-
-//       const quotedMessageIndex = normalizedTextBody.search(/on .* wrote:/i);
-//       let userResponse = quotedMessageIndex !== -1
-//         ? normalizedTextBody.slice(0, quotedMessageIndex).trim()
-//         : normalizedTextBody;
-
-//       // Check if we have a button response in DB (if emailId and jobId provided)
-//       if (emailId && jobId) {
-//         try {
-//           const buttonResponseRecord = await collection.findOne({
-//             userId: userId,
-//             jobId: jobId,
-//             emailId: emailId
-//           });
-
-//           if (buttonResponseRecord && buttonResponseRecord.response) {
-//             console.log("✅ Button response retrieved from DB:", buttonResponseRecord.response);
-//             userResponse = buttonResponseRecord.response.toLowerCase();
-//           }
-//         } catch (e) {
-//           console.error('Error fetching button response from DB:', e);
-//         }
-//       }
-
-//       // Determine if response is positive or negative
-//       const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-//       const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
-
-//       if (isPositive) {
-//         console.log("✅ Positive response detected:", userResponse);
-//         positiveResponses++;
-//         // Update application status in database
-//         await db.collection('applications').updateOne(
-//           { userId, jobId },
-//           { $set: { status: 'approved', respondedAt: new Date() } }
-//         );
-//       } else {
-//         console.log("❌ Negative response detected:", userResponse);
-//         negativeResponses++;
-//         await db.collection('applications').updateOne(
-//           { userId, jobId },
-//           { $set: { status: 'rejected', respondedAt: new Date() } }
-//         );
-//       }
-
-//       processedCount++;
-//     }
-
-//     await connection.end();
-//     await mongoClient.close();
-
-//     console.log(`Processed ${processedCount} responses`);
-//     res.json({ 
-//       success: true, 
-//       responsesFound: messages.length, 
-//       processed: processedCount,
-//       positiveResponses,
-//       negativeResponses
-//     });
-
-//   } catch (error) {
-//     console.error('Error in checkForResponses:', error);
-
-//     if (connection) {
-//       await connection.end();
-//     }
-//     if (mongoClient) {
-//       await mongoClient.close();
-//     }
-
-//     res.status(500).json({ error: error.message });
-//   }
-// });
-
-// // Handle email responses
-// app.get('/handle-response', async (req, res) => {
-//   const { response, emailId, jobId, userId } = req.query;
-//   console.log('📩 Received:', { response, emailId, jobId, userId });
-
-//   try {
-//     const client = new MongoClient(process.env.MONGODB_URI);
-//     await client.connect();
-
-//     const db = client.db('olukayode_sage');
-
-//     // Store the response
-//     const insertResult = await db.collection('user_application_response').insertOne({
-//       userId: userId || 'unknown',
-//       response,
-//       emailId,
-//       jobId,
-//       timestamp: new Date()
-//     });
-
-//     console.log('Response stored in DB:', insertResult.insertedId);
-
-//     // If we have all required parameters, check for responses immediately
-//     if (userId && emailId && jobId) {
-//       try {
-//         const checkResult = await checkForResponsesImmediately(userId, emailId, jobId);
-//         console.log('Immediate response check completed:', checkResult);
-//       } catch (error) {
-//         console.error('Error in immediate response check:', error);
-//       }
-//     }
-
-//     await client.close();
-
-//     // Send the HTML response
-//     res.send(`
-//       <!DOCTYPE html>
-//       <html lang="en">
-//       <head>
-//         <meta charset="UTF-8" />
-//         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-//         <title>Success</title>
-//         <style>
-//           body {
-//             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-//             display: flex;
-//             justify-content: center;
-//             align-items: center;
-//             height: 100vh;
-//             background: linear-gradient(135deg, #f4fdf6 0%, #e8f5e9 100%);
-//             margin: 0;
-//           }
-//           .container {
-//             text-align: center;
-//             animation: fadeIn 1s ease-in-out;
-//             max-width: 400px;
-//             padding: 30px;
-//             background: white;
-//             border-radius: 20px;
-//             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-//           }
-//           .circle {
-//             width: 130px;
-//             height: 130px;
-//             background: #a3e635;
-//             border-radius: 50%;
-//             display: flex;
-//             justify-content: center;
-//             align-items: center;
-//             margin: 0 auto 25px;
-//             animation: pop 0.6s ease forwards;
-//             box-shadow: 0 5px 15px rgba(163, 230, 53, 0.4);
-//           }
-//           .tick {
-//             font-size: 60px;
-//             color: white;
-//             animation: scaleUp 0.5s ease forwards 0.5s;
-//             opacity: 0;
-//           }
-//           h1 {
-//             font-size: 1.9rem;
-//             color: #166534;
-//             margin-bottom: 15px;
-//           }
-//           p {
-//             font-size: 1.05rem;
-//             color: #4b5563;
-//             margin-bottom: 30px;
-//             line-height: 1.5;
-//           }
-//           .button-row {
-//             display: flex;
-//             justify-content: center;
-//             gap: 15px;
-//             margin-bottom: 25px;
-//           }
-//           .btn {
-//             padding: 14px 25px;
-//             border-radius: 30px;
-//             border: none;
-//             cursor: pointer;
-//             font-size: 1rem;
-//             font-weight: 600;
-//             transition: all 0.3s ease;
-//             min-width: 160px;
-//           }
-//           .btn:hover {
-//             transform: translateY(-3px);
-//             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-//           }
-//           .btn:active {
-//             transform: translateY(0);
-//           }
-//           .btn-green {
-//             background: #22c55e;
-//             color: white;
-//           }
-//           .btn-green:hover {
-//             background: #16a34a;
-//           }
-//           .btn-purple {
-//             background: #6b21a8;
-//             color: white;
-//           }
-//           .btn-purple:hover {
-//             background: #581c87;
-//           }
-//           .footer {
-//             margin-top: 30px;
-//             font-size: 0.85rem;
-//             color: #6b7280;
-//           }
-//           @keyframes fadeIn {
-//             from { opacity: 0; transform: translateY(20px); }
-//             to { opacity: 1; transform: translateY(0); }
-//           }
-//           @keyframes pop {
-//             0% { transform: scale(0.5); opacity: 0; }
-//             100% { transform: scale(1); opacity: 1; }
-//           }
-//           @keyframes scaleUp {
-//             to { transform: scale(1.1); opacity: 1; }
-//           }
-//         </style>
-//       </head>
-//       <body>
-//         <div class="container">
-//           <div class="circle">
-//             <div class="tick">✔</div>
-//           </div>
-//           <h1>Excellent Choice!</h1>
-//           <p>We've received your response and will now proceed with your application.</p>
-//           <div class="button-row">
-//             <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
-//               Auto-Apply
-//             </button>
-//             <button class="btn btn-purple" onclick="window.close()">
-//               Exit
-//             </button>
-//           </div>
-//           <div class="footer">
-//             Powered by <strong>IntelliJob</strong> from Suntrenia
-//           </div>
-//         </div>
-//         <script>
-//           setTimeout(() => {
-//             document.querySelector('.tick').style.opacity = '1';
-//           }, 600);
-//         </script>
-//       </body>
-//       </html>
-//     `);
-
-//   } catch (err) {
-//     console.error('❌ Error in handle-response:', err);
-//     res.status(500).send('Server error');
-//   }
-// });
-
-// // Helper function for immediate checking (used by handle-response)
-// async function checkForResponsesImmediately(userId, emailId, jobId) {
-//   try {
-//     const client = new MongoClient(process.env.MONGODB_URI);
-//     await client.connect();
-
-//     const db = client.db('olukayode_sage');
-//     const collection = db.collection('user_application_response');
-
-//     // Check for button response in DB
-//     const buttonResponseRecord = await collection.findOne({
-//       userId: userId,
-//       jobId: jobId,
-//       emailId: emailId
-//     });
-
-//     if (buttonResponseRecord && buttonResponseRecord.response) {
-//       console.log("✅ Button response found:", buttonResponseRecord.response);
-//       const userResponse = buttonResponseRecord.response.toLowerCase();
-
-//       // Determine if response is positive or negative
-//       const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-//       const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
-
-//       if (isPositive) {
-//         console.log("✅ Positive response detected - proceeding with application");
-//         // Update application status in database
-//         await db.collection('applications').updateOne(
-//           { userId, jobId },
-//           { $set: { status: 'approved', respondedAt: new Date() } }
-//         );
-//       } else {
-//         console.log("❌ Negative response detected - stopping application");
-//         await db.collection('applications').updateOne(
-//           { userId, jobId },
-//           { $set: { status: 'rejected', respondedAt: new Date() } }
-//         );
-//       }
-//     }
-
-//     await client.close();
-//     return { success: true };
-
-////////HEAD
-//   } catch (error) {
-//     console.error('Error in immediate check:', error);
-//     throw error;
-//   }
-// }
-
-// app.listen(PORT, () => {
-//   console.log(`🚀 Server running on http://localhost:${PORT}`);
-//   console.log(`📧 IMAP User: ${process.env.IMAP_USER}`);
-//   console.log(`📧 SMTP User: ${process.env.SMTP_USER}`);
-// });
-
-
-//const express = require('express');
-// const { MongoClient } = require('mongodb');
-// const dotenv = require('dotenv').config();
-// const cors = require('cors');
-// const helmet = require('helmet');
-// const rateLimit = require('express-rate-limit');
-
-// const app = express();
-// const PORT = process.env.PORT || 3000;
-
-// // Middleware
-// app.use(cors());
-// app.use(helmet());
-// app.use(express.json());
-// app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-
-// // Test route
-// app.get('/', (req, res) => {
-//   res.send('🟢 Backend is running (CommonJS)');
-// });
-
-// // Handle email responses
-// app.get('/handle-response', async (req, res) => {
-//   const { response, emailId, jobId } = req.query;
-//   console.log('📩 Received:', { response, emailId, jobId });
-
-//   try {
-
-//     const client = new MongoClient(process.env.MONGODB_URI);
-//     await client.connect();
-//     const db = client.db('suntrenia');
-//     await db.collection('responses').insertOne({
-//       response,
-//       emailId,
-//       jobId,
-//       timestamp: new Date()
-//     });
-//     await client.close();
-
-
-//     res.send(`
-//       <h1>✅ Success!</h1>
-//       <p>Recorded: ${response} (job ${jobId})</p>
-//     `);
-//   } catch (err) {
-//     console.error('❌ MongoDB Error:', err);
-//     res.status(500).send('Database error');
-//   }
-// });
-
-// app.listen(PORT, () => {
-//   console.log(`🚀 Server running on http://localhost:${PORT}`);
-// });
-
-
-
-
-
-
-
-
-
-
-
-
-
-// const express = require('express');
-// const { MongoClient } = require('mongodb');
-// const dotenv = require('dotenv').config();
-// const cors = require('cors');
-// const helmet = require('helmet');
-// const rateLimit = require('express-rate-limit');
-
-// const app = express();
-// const PORT = process.env.PORT || 3000;
-
-// // Middleware
-// app.use(cors());
-// app.use(helmet());
-// app.use(express.json());
-// app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-
-// // Test route
-// app.get('/', (req, res) => {
-//   res.send('🟢 Backend is running (CommonJS)');
-// });
-
-// // Handle email responses
-// app.get('/handle-response', async (req, res) => {
-//   const { response, emailId, jobId } = req.query;
-//   console.log('📩 Received:', { response, emailId, jobId });
-
-//   try {
-//     const client = new MongoClient(process.env.MONGODB_URI);
-//     await client.connect();
-
-//     const db = client.db('olukayode_sage');
-//     // ✅ Store the insert result in a variable
-//     const insertResult = await db.collection('user_application_response').insertOne({
-//       response,
-//       emailId,
-//       jobId,
-//       timestamp: new Date()
-//     });
-
-//     console.log('Insert result:', insertResult);
-//     console.log("Checking for responses now...");
-
-//     // [ADDED] Check for responses - only if function exists
-//     try {
-//       if (typeof checkForResponses === 'function') {
-//         // Use emailId and jobId from query, generate userId fallback
-//         const userId = 'default_user_id'; // Simplified like local version approach
-//         await checkForResponses(userId, emailId, jobId);
-//       } else {
-//         console.log('checkForResponses function not available in this environment');
-//       }
-//     } catch (error) {
-//       console.error('Error in checkForResponses:', error);
-//     }
-
-//     await client.close();
-
-// res.send(`
-//   <!DOCTYPE html>
-//   <html lang="en">
-//   <head>
-//     <meta charset="UTF-8" />
-//     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-//     <title>Success</title>
-//     <style>
-//       body {
-//         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-//         display: flex;
-//         justify-content: center;
-//         align-items: center;
-//         height: 100vh;
-//         background: #f4fdf6;
-//         margin: 0;
-//       }
-//       .container {
-//         text-align: center;
-//         animation: fadeIn 1s ease-in-out;
-//         max-width: 350px;
-//       }
-//       .circle {
-//         width: 100px;
-//         height: 100px;
-//         background: #a3e635;
-//         border-radius: 50%;
-//         display: flex;
-//         justify-content: center;
-//         align-items: center;
-//         margin: 0 auto 20px;
-//         animation: pop 0.6s ease forwards;
-//       }
-//       .tick {
-//         font-size: 48px;
-//         color: white;
-//         animation: scaleUp 0.5s ease forwards 0.5s;
-//         opacity: 0;
-//       }
-//       h1 {
-//         font-size: 1.8rem;
-//         color: #166534;
-//         margin-bottom: 10px;
-//       }
-//       p {
-//         font-size: 1rem;
-//         color: #4b5563;
-//         margin-bottom: 25px;
-//       }
-//       .btn {
-//         width: 200px;
-//         padding: 12px;
-//         border-radius: 25px;
-//         border: none;
-//         cursor: pointer;
-//         font-size: 0.95rem;
-//         margin: 8px auto;
-//         display: block;
-//         transition: transform 0.2s ease, background 0.3s ease;
-//       }
-//       .btn:hover {
-//         transform: scale(1.05);
-//       }
-//       .btn-green {
-//         background: #22c55e;
-//         color: white;
-//       }
-//       .btn-green:hover {
-//         background: #16a34a;
-//       }
-//       .btn-red {
-//         background: #ef4444;
-//         color: white;
-//       }
-//       .btn-red:hover {
-//         background: #dc2626;
-//       }
-//       .footer {
-//         margin-top: 30px;
-//         font-size: 0.8rem;
-//         color: #6b7280;
-//       }
-//       @keyframes fadeIn {
-//         from { opacity: 0; }
-//         to { opacity: 1; }
-//       }
-//       @keyframes pop {
-//         0% { transform: scale(0.5); opacity: 0; }
-//         100% { transform: scale(1); opacity: 1; }
-//       }
-//       @keyframes scaleUp {
-//         to { transform: scale(1.1); opacity: 1; }
-//       }
-//     </style>
-//   </head>
-//   <body>
-//     <div class="container">
-//       <div class="circle">
-//         <div class="tick">✔</div>
-//       </div>
-//       <h1>Good Choice</h1>
-//       <p>We will now proceed with your application.</p>
-//       <button class="btn btn-green" onclick="alert('Auto-Apply enabled ✅. We’ll handle future applications for you ✨')">
-//         Enable Auto-Apply (next time)
-//       </button>
-//       <button class="btn btn-red" onclick="window.close()">
-//         Exit
-//       </button>
-//       <div class="footer">
-//         IntelliJob from <strong>Suntrenia</strong>
-//       </div>
-//     </div>
-//     <script>
-//       // Reveal tick after circle pops
-//       setTimeout(() => {
-//         document.querySelector('.tick').style.opacity = '1';
-//       }, 600);
-//     </script>
-//   </body>
-//   </html>
-// `);
-
-
-//   } catch (err) {
-//     console.error('❌ MongoDB Error:', err);
-//     res.status(500).send('Database error');
-//   }
-// });
-
-// app.listen(PORT, () => {
-//   console.log(`🚀 Server running on http://localhost:${PORT}`);
-// });
-
-
-
-// const express = require('express');
-// const { MongoClient, ObjectId } = require('mongodb');
-// const dotenv = require('dotenv').config();
-// const cors = require('cors');
-// const helmet = require('helmet');
-// const rateLimit = require('express-rate-limit');
-// const imaps = require('imap-simple');
-// const { simpleParser } = require('mailparser');
-// const nodemailer = require('nodemailer');
-
-// const app = express();
-// const PORT = process.env.PORT || 3000;
-
-// // SMTP Configuration for SENDING emails
-// const transporter = nodemailer.createTransport({
-//   host: process.env.SMTP_HOST || "smtp.gmail.com",
-//   port: parseInt(process.env.SMTP_PORT) || 587,
-//   secure: process.env.SMTP_SECURE === "true",
-//   auth: {
-//     user: process.env.SMTP_USER,
-//     pass: process.env.SMTP_PASSWORD,
-//   },
-// });
-
-// // IMAP Configuration for READING emails
-// const imapConfig = {
-//   imap: {
-//     user: process.env.IMAP_USER,
-//     password: process.env.IMAP_PASSWORD,
-//     host: process.env.IMAP_HOST || "imap.gmail.com",
-//     port: parseInt(process.env.IMAP_PORT) || 993,
-//     tls: true,
-//     tlsOptions: { rejectUnauthorized: false }
-//   }
-// };
-
-// // Middleware
-// app.use(cors());
-// app.use(helmet());
-// app.use(express.json());
-// app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-
-// // Test route
-// app.get('/', (req, res) => {
-//   res.send('🟢 Backend is running with environment variables');
-// });
-
-// // Real checkForResponses function (now as an endpoint)
-// app.get('/check-responses', async (req, res) => {
-//   const { userId, emailId, jobId } = req.query;
-
-//   console.log('🔍 Checking responses with:', { userId, emailId, jobId });
-
-//   if (!userId) {
-//     return res.status(400).json({ error: 'userId is required' });
-//   }
-
-//   let connection;
-//   let mongoClient;
-
-//   try {
-//     console.log(`Starting response check for user: ${userId}`);
-
-//     // Connect to IMAP server
-//     connection = await imaps.connect(imapConfig);
-//     await connection.openBox('INBOX');
-
-//     // Search for unread emails
-//     const searchCriteria = ['UNSEEN'];
-//     const fetchOptions = { bodies: ['HEADER', 'TEXT'], markSeen: true };
-
-//     const messages = await connection.search(searchCriteria, fetchOptions);
-
-//     if (messages.length === 0) {
-//       console.log('No new responses found.');
-//       await connection.end();
-//       return res.json({ success: true, responsesFound: 0, message: 'No new responses' });
-//     }
-
-//     // Connect to MongoDB
-//     mongoClient = new MongoClient(process.env.MONGODB_URI);
-//     await mongoClient.connect();
-//     const db = mongoClient.db('olukayode_sage');
-//     const collection = db.collection('user_application_response');
-
-//     let processedCount = 0;
-//     let positiveResponses = 0;
-//     let negativeResponses = 0;
-
-//     // Process each email
-//     for (const message of messages) {
-//       const textPart = message.parts.find(part => part.which === 'TEXT');
-//       const id = message.attributes.uid;
-//       const rawMessage = textPart?.body;
-
-//       if (!rawMessage) {
-//         console.log('No message body found for this email.');
-//         continue;
-//       }
-
-//       // Parse the email
-//       const parsedEmail = await simpleParser(rawMessage);
-//       const from = parsedEmail.from?.text || 'Unknown sender';
-//       const subject = parsedEmail.subject || 'No subject';
-//       const textBody = parsedEmail.text || 'No message body';
-
-//       console.log(`New response from: ${from}`);
-//       console.log(`Subject: ${subject}`);
-
-//       // Extract user response from email
-//       let normalizedTextBody = textBody.toLowerCase();
-//       normalizedTextBody = normalizedTextBody.replace(/<\/?[^>]+(>|$)/g, "");
-//       normalizedTextBody = normalizedTextBody.replace(/\s+/g, ' ').trim();
-
-//       const quotedMessageIndex = normalizedTextBody.search(/on .* wrote:/i);
-//       let userResponse = quotedMessageIndex !== -1
-//         ? normalizedTextBody.slice(0, quotedMessageIndex).trim()
-//         : normalizedTextBody;
-
-//       // Check if we have a button response in DB (if emailId and jobId provided)
-//       if (emailId && jobId) {
-//         try {
-//           const buttonResponseRecord = await collection.findOne({
-//             userId: userId,
-//             jobId: jobId,
-//             emailId: emailId
-//           });
-
-//           if (buttonResponseRecord && buttonResponseRecord.response) {
-//             console.log("✅ Button response retrieved from DB:", buttonResponseRecord.response);
-//             userResponse = buttonResponseRecord.response.toLowerCase();
-//           }
-//         } catch (e) {
-//           console.error('Error fetching button response from DB:', e);
-//         }
-//       }
-
-//       // Determine if response is positive or negative
-//       const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-//       const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
-
-//       if (isPositive) {
-//         console.log("✅ Positive response detected:", userResponse);
-//         positiveResponses++;
-//         // Update application status in database
-//         await db.collection('applications').updateOne(
-//           { userId, jobId },
-//           { $set: { status: 'approved', respondedAt: new Date() } }
-//         );
-//       } else {
-//         console.log("❌ Negative response detected:", userResponse);
-//         negativeResponses++;
-//         await db.collection('applications').updateOne(
-//           { userId, jobId },
-//           { $set: { status: 'rejected', respondedAt: new Date() } }
-//         );
-//       }
-
-//       processedCount++;
-//     }
-
-//     await connection.end();
-//     await mongoClient.close();
-
-//     console.log(`Processed ${processedCount} responses`);
-//     res.json({ 
-//       success: true, 
-//       responsesFound: messages.length, 
-//       processed: processedCount,
-//       positiveResponses,
-//       negativeResponses
-//     });
-
-//   } catch (error) {
-//     console.error('Error in checkForResponses:', error);
-
-//     if (connection) {
-//       await connection.end();
-//     }
-//     if (mongoClient) {
-//       await mongoClient.close();
-//     }
-
-//     res.status(500).json({ error: error.message });
-//   }
-// });
-
-// // Handle email responses
-// app.get('/handle-response', async (req, res) => {
-//   const { response, emailId, jobId, userId } = req.query;
-//   console.log('📩 Received:', { response, emailId, jobId, userId });
-
-//   try {
-//     const client = new MongoClient(process.env.MONGODB_URI);
-//     await client.connect();
-
-//     const db = client.db('olukayode_sage');
-
-//     // Store the response
-//     const insertResult = await db.collection('user_application_response').insertOne({
-//       userId: userId || 'unknown',
-//       response,
-//       emailId,
-//       jobId,
-//       timestamp: new Date()
-//     });
-
-//     console.log('Response stored in DB:', insertResult.insertedId);
-
-//     // If we have all required parameters, check for responses immediately
-//     if (userId && emailId && jobId) {
-//       try {
-//         const checkResult = await checkForResponsesImmediately(userId, emailId, jobId);
-//         console.log('Immediate response check completed:', checkResult);
-//       } catch (error) {
-//         console.error('Error in immediate response check:', error);
-//       }
-//     }
-
-//     await client.close();
-
-//     // Send the HTML response
-//     res.send(`
-//       <!DOCTYPE html>
-//       <html lang="en">
-//       <head>
-//         <meta charset="UTF-8" />
-//         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-//         <title>Success</title>
-//         <style>
-//           body {
-//             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-//             display: flex;
-//             justify-content: center;
-//             align-items: center;
-//             height: 100vh;
-//             background: linear-gradient(135deg, #f4fdf6 0%, #e8f5e9 100%);
-//             margin: 0;
-//           }
-//           .container {
-//             text-align: center;
-//             animation: fadeIn 1s ease-in-out;
-//             max-width: 400px;
-//             padding: 30px;
-//             background: white;
-//             border-radius: 20px;
-//             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-//           }
-//           .circle {
-//             width: 130px;
-//             height: 130px;
-//             background: #a3e635;
-//             border-radius: 50%;
-//             display: flex;
-//             justify-content: center;
-//             align-items: center;
-//             margin: 0 auto 25px;
-//             animation: pop 0.6s ease forwards;
-//             box-shadow: 0 5px 15px rgba(163, 230, 53, 0.4);
-//           }
-//           .tick {
-//             font-size: 60px;
-//             color: white;
-//             animation: scaleUp 0.5s ease forwards 0.5s;
-//             opacity: 0;
-//           }
-//           h1 {
-//             font-size: 1.9rem;
-//             color: #166534;
-//             margin-bottom: 15px;
-//           }
-//           p {
-//             font-size: 1.05rem;
-//             color: #4b5563;
-//             margin-bottom: 30px;
-//             line-height: 1.5;
-//           }
-//           .button-row {
-//             display: flex;
-//             justify-content: center;
-//             gap: 15px;
-//             margin-bottom: 25px;
-//           }
-//           .btn {
-//             padding: 14px 25px;
-//             border-radius: 30px;
-//             border: none;
-//             cursor: pointer;
-//             font-size: 1rem;
-//             font-weight: 600;
-//             transition: all 0.3s ease;
-//             min-width: 160px;
-//           }
-//           .btn:hover {
-//             transform: translateY(-3px);
-//             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-//           }
-//           .btn:active {
-//             transform: translateY(0);
-//           }
-//           .btn-green {
-//             background: #22c55e;
-//             color: white;
-//           }
-//           .btn-green:hover {
-//             background: #16a34a;
-//           }
-//           .btn-purple {
-//             background: #6b21a8;
-//             color: white;
-//           }
-//           .btn-purple:hover {
-//             background: #581c87;
-//           }
-//           .footer {
-//             margin-top: 30px;
-//             font-size: 0.85rem;
-//             color: #6b7280;
-//           }
-//           @keyframes fadeIn {
-//             from { opacity: 0; transform: translateY(20px); }
-//             to { opacity: 1; transform: translateY(0); }
-//           }
-//           @keyframes pop {
-//             0% { transform: scale(0.5); opacity: 0; }
-//             100% { transform: scale(1); opacity: 1; }
-//           }
-//           @keyframes scaleUp {
-//             to { transform: scale(1.1); opacity: 1; }
-//           }
-//         </style>
-//       </head>
-//       <body>
-//         <div class="container">
-//           <div class="circle">
-//             <div class="tick">✔</div>
-//           </div>
-//           <h1>Excellent Choice!</h1>
-//           <p>We've received your response and will now proceed with your application.</p>
-//           <div class="button-row">
-//             <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
-//               Auto-Apply
-//             </button>
-//             <button class="btn btn-purple" onclick="window.close()">
-//               Exit
-//             </button>
-//           </div>
-//           <div class="footer">
-//             Powered by <strong>IntelliJob</strong> from Suntrenia
-//           </div>
-//         </div>
-//         <script>
-//           setTimeout(() => {
-//             document.querySelector('.tick').style.opacity = '1';
-//           }, 600);
-//         </script>
-//       </body>
-//       </html>
-//     `);
-
-//   } catch (err) {
-//     console.error('❌ Error in handle-response:', err);
-//     res.status(500).send('Server error');
-//   }
-// });
-
-// // Helper function for immediate checking (used by handle-response)
-// async function checkForResponsesImmediately(userId, emailId, jobId) {
-//   try {
-//     const client = new MongoClient(process.env.MONGODB_URI);
-//     await client.connect();
-
-//     const db = client.db('olukayode_sage');
-//     const collection = db.collection('user_application_response');
-
-//     // Check for button response in DB
-//     const buttonResponseRecord = await collection.findOne({
-//       userId: userId,
-//       jobId: jobId,
-//       emailId: emailId
-//     });
-
-//     if (buttonResponseRecord && buttonResponseRecord.response) {
-//       console.log("✅ Button response found:", buttonResponseRecord.response);
-//       const userResponse = buttonResponseRecord.response.toLowerCase();
-
-//       // Determine if response is positive or negative
-//       const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-//       const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
-
-//       if (isPositive) {
-//         console.log("✅ Positive response detected - proceeding with application");
-//         // Update application status in database
-//         await db.collection('applications').updateOne(
-//           { userId, jobId },
-//           { $set: { status: 'approved', respondedAt: new Date() } }
-//         );
-//       } else {
-//         console.log("❌ Negative response detected - stopping application");
-//         await db.collection('applications').updateOne(
-//           { userId, jobId },
-//           { $set: { status: 'rejected', respondedAt: new Date() } }
-//         );
-//       }
-//     }
-
-//     await client.close();
-//     return { success: true };
-
-// =======
-// >>>>>>> 855ac8093dcbb600833ba18405db511b76bf58e5
-//   } catch (error) {
-//     console.error('Error in immediate check:', error);
-//     throw error;
-//   }
-// }
-
-// app.listen(PORT, () => {
-//   console.log(`🚀 Server running on http://localhost:${PORT}`);
-//   console.log(`📧 IMAP User: ${process.env.IMAP_USER}`);
-//   console.log(`📧 SMTP User: ${process.env.SMTP_USER}`);
-// });
-
-
-
-
-
-
 
 
 
@@ -1671,339 +304,8 @@ app.get('/handle-response', async (req, res) => {
     
     // Send different HTML based on response type
     if (isPositive) {
-      // Positive response HTML
-      res.send(
-        `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Success</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-        
-          body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-            background-size: 300% 300%;
-            animation: gradientShift 6s ease infinite;
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-        
-          @keyframes gradientShift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
-        
-          .container {
-            max-width: 500px;
-            margin: 50px auto;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            padding: 40px;
-            border-radius: 24px;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            animation: containerFloat 0.8s ease-out;
-          }
-        
-          @keyframes containerFloat {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-        
-          .circle {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
-            border-radius: 50%;
-            margin: 0 auto 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 15px 35px rgba(0, 200, 81, 0.3);
-            position: relative;
-            animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s both;
-          }
-        
-          .circle::before {
-            content: '';
-            position: absolute;
-            inset: -4px;
-            background: linear-gradient(135deg, #00c851, #007e33);
-            border-radius: 50%;
-            z-index: -1;
-            opacity: 0.4;
-            animation: ripple 2.5s ease-in-out 1s infinite;
-          }
-        
-          @keyframes bounceIn {
-            from { transform: scale(0) rotate(180deg); }
-            to { transform: scale(1) rotate(0deg); }
-          }
-        
-          @keyframes ripple {
-            0%, 100% { transform: scale(1); opacity: 0.4; }
-            50% { transform: scale(1.15); opacity: 0.7; }
-          }
-        
-          .tick {
-            color: white;
-            font-size: 38px;
-            font-weight: bold;
-            opacity: 0;
-            animation: tickReveal 0.6s ease 1s both;
-          }
-        
-          @keyframes tickReveal {
-            from { opacity: 0; transform: scale(0.5) rotate(-45deg); }
-            to { opacity: 1; transform: scale(1) rotate(0deg); }
-          }
-        
-          h1 {
-            color: #1a202c;
-            font-size: 32px;
-            font-weight: 800;
-            margin-bottom: 15px;
-            animation: slideUp 0.6s ease 0.4s both;
-          }
-        
-          p {
-            color: #4a5568;
-            font-size: 17px;
-            margin-bottom: 20px;
-            line-height: 1.6;
-            animation: slideUp 0.6s ease 0.6s both;
-          }
-        
-          @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-        
-          .button-row {
-            display: flex;
-            gap: 20px;
-            margin: 35px 0;
-            animation: slideUp 0.6s ease 0.8s both;
-          }
-        
-          .btn {
-            flex: 1;
-            padding: 16px 20px;
-            border: none;
-            border-radius: 16px;
-            cursor: pointer;
-            font-weight: 700;
-            font-size: 15px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-        
-          .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-            transition: left 0.5s;
-          }
-        
-          .btn:hover::before {
-            left: 100%;
-          }
-        
-          .btn:active {
-            transform: scale(0.98);
-          }
-        
-          .btn-green {
-            background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
-            color: white;
-            box-shadow: 0 8px 20px rgba(0, 200, 81, 0.35);
-            position: relative;
-          }
-        
-          .btn-green::after {
-            content: "Enable for future applications";
-            position: absolute;
-            bottom: -35px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 11px;
-            white-space: nowrap;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
-            font-weight: 500;
-            text-transform: none;
-            letter-spacing: 0;
-          }
-        
-          .btn-green:hover::after {
-            opacity: 1;
-          }
-        
-          .btn-green:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 25px rgba(0, 200, 81, 0.45);
-          }
-        
-          .btn-purple {
-            background: linear-gradient(135deg, #6c5ce7 0%, #5a4fcf 100%);
-            color: white;
-            box-shadow: 0 8px 20px rgba(108, 92, 231, 0.35);
-          }
-        
-          .btn-purple:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 25px rgba(108, 92, 231, 0.45);
-          }
-        
-          .footer {
-            margin-top: 35px;
-            color: #718096;
-            font-size: 14px;
-            animation: slideUp 0.6s ease 1s both;
-          }
-        
-          .footer strong {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-          }
-        
-          @media (max-width: 480px) {
-            .container {
-              margin: 20px;
-              padding: 32px 24px;
-            }
-            
-            .button-row {
-              flex-direction: column;
-              gap: 16px;
-            }
-            
-            .btn-green::after {
-              bottom: -30px;
-              font-size: 10px;
-            }
-            
-            h1 {
-              font-size: 26px;
-            }
-          }
-        
-          .exit-message {
-            display: none;
-            text-align: center;
-            padding: 60px 40px;
-            font-family: sans-serif;
-            color: white;
-            animation: fadeIn 0.5s ease;
-          }
-        
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-        
-          .exit-message h2 {
-            font-size: 28px;
-            margin-bottom: 15px;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-          }
-        
-          .exit-message p {
-            font-size: 18px;
-            opacity: 0.9;
-          }
-        </style>
-        </head>
-        <body>
-        <div class="container">
-          <div class="circle">
-            <div class="tick">✓</div>
-          </div>
-          <h1>Excellent Choice!</h1>
-          <p>We've received your response and will now proceed with your application.</p>
-          <div class="button-row">
-            <button class="btn btn-green" onclick="window.location.href='/dashboard/settings'">
-              Auto-Apply
-            </button>
-            <button class="btn btn-purple" onclick="exitPage()">
-              Exit
-            </button>
-          </div>
-          <div class="footer">
-            Powered by <strong>IntelliJob</strong> from Suntrenia
-          </div>
-        </div>
-        
-        <div class="exit-message">
-          <h2>You can safely close this tab now</h2>
-          <p>Thank you for using IntelliJob!</p>
-        </div>
-        
-        <script>
-          console.log('Response processed successfully');
-          
-          function exitPage() {
-            document.querySelector('.container').style.display = 'none';
-            document.querySelector('.exit-message').style.display = 'block';
-            
-            setTimeout(() => {
-              try {
-                window.close();
-              } catch (e) {
-                console.log('Cannot close window');
-              }
-              
-              setTimeout(() => {
-                try {
-                  if (window.history.length > 1) {
-                    window.history.back();
-                  }
-                } catch (e) {
-                  console.log('Cannot go back');
-                }
-              }, 500);
-            }, 1000);
-          }
-          
-          document.querySelectorAll('.btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-              this.style.transform = 'scale(0.98) translateY(-3px)';
-              setTimeout(() => {
-                this.style.transform = '';
-              }, 150);
-            });
-          });
-        </script>
-        </body>
-        </html>`
-      );
-    } else {
+        res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
+      } else {
       // Negative response HTML
       res.send(
         `<!DOCTYPE html>
@@ -2369,6 +671,741 @@ async function checkForResponsesImmediately(userId, emailId, jobId) {
     throw error;
   }
 }
+
+
+
+function getAuthorizationHTML(userId, jobId, emailId, responseId) {
+    return `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Email Authorization</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+  
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      background-size: 300% 300%;
+      animation: gradientShift 8s ease infinite;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+  
+    .container {
+      max-width: 650px;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(30px);
+      padding: 50px 40px;
+      border-radius: 28px;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
+      text-align: center;
+      animation: slideUp 0.6s ease-out;
+      position: relative;
+      overflow: hidden;
+    }
+  
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+      background-size: 200% 100%;
+      animation: shimmer 3s linear infinite;
+    }
+  
+    @keyframes shimmer {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 200% 0%; }
+    }
+  
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  
+    .icon-wrapper {
+      width: 120px;
+      height: 120px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      margin: 0 auto 35px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      animation: float 3s ease-in-out infinite;
+      box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+    }
+  
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+  
+    .icon-wrapper::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      border-radius: 50%;
+      z-index: -1;
+      opacity: 0.3;
+      animation: pulse 2s ease-in-out infinite;
+    }
+  
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.3; }
+      50% { transform: scale(1.1); opacity: 0.5; }
+    }
+  
+    .icon-wrapper svg {
+      width: 60px;
+      height: 60px;
+      fill: white;
+    }
+  
+    h1 {
+      color: #1a202c;
+      font-size: 36px;
+      font-weight: 900;
+      margin-bottom: 15px;
+      letter-spacing: -0.5px;
+    }
+  
+    .subtitle {
+      color: #4a5568;
+      font-size: 18px;
+      margin-bottom: 40px;
+      line-height: 1.7;
+      font-weight: 500;
+    }
+  
+    .options-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+  
+    .option-card {
+      background: white;
+      border: 3px solid transparent;
+      border-radius: 20px;
+      padding: 30px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    }
+  
+    .option-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+      border-color: #667eea;
+    }
+  
+    .option-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+      transition: left 0.5s;
+    }
+  
+    .option-card:hover::before {
+      left: 100%;
+    }
+  
+    .recommended {
+      border-color: #00c851;
+      background: linear-gradient(135deg, rgba(0, 200, 81, 0.05) 0%, rgba(0, 200, 81, 0.02) 100%);
+    }
+  
+    .recommended .badge {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
+      color: white;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 4px 12px rgba(0, 200, 81, 0.3);
+    }
+  
+    .option-header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 15px;
+      text-align: left;
+    }
+  
+    .option-icon {
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+  
+    .option-icon svg {
+      width: 28px;
+      height: 28px;
+      fill: white;
+    }
+  
+    .option-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1a202c;
+      margin: 0;
+    }
+  
+    .option-description {
+      color: #4a5568;
+      font-size: 15px;
+      line-height: 1.6;
+      text-align: left;
+      margin-bottom: 20px;
+    }
+  
+    .benefits {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: left;
+    }
+  
+    .benefit-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #2d3748;
+      font-size: 14px;
+    }
+  
+    .benefit-item svg {
+      width: 18px;
+      height: 18px;
+      fill: #00c851;
+      flex-shrink: 0;
+    }
+  
+    .security-note {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+      border-left: 4px solid #667eea;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: left;
+      margin-top: 30px;
+    }
+  
+    .security-note h3 {
+      color: #1a202c;
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  
+    .security-note h3 svg {
+      width: 20px;
+      height: 20px;
+      fill: #667eea;
+    }
+  
+    .security-note ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+  
+    .security-note li {
+      color: #4a5568;
+      font-size: 14px;
+      line-height: 1.8;
+      padding-left: 24px;
+      position: relative;
+    }
+  
+    .security-note li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #667eea;
+      font-weight: bold;
+    }
+  
+    .footer {
+      margin-top: 40px;
+      padding-top: 30px;
+      border-top: 2px solid rgba(0, 0, 0, 0.06);
+      color: #718096;
+      font-size: 14px;
+    }
+  
+    .footer strong {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 800;
+    }
+  
+    @media (max-width: 768px) {
+      .container {
+        padding: 40px 25px;
+      }
+  
+      h1 {
+        font-size: 28px;
+      }
+  
+      .subtitle {
+        font-size: 16px;
+      }
+  
+      .option-card {
+        padding: 25px;
+      }
+  
+      .option-title {
+        font-size: 19px;
+      }
+    }
+  
+    .loading {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+  
+    .loading.active {
+      display: flex;
+    }
+  
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+  </head>
+  <body>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+  </div>
+  
+  <div class="container">
+    <div class="icon-wrapper">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+      </svg>
+    </div>
+  
+    <h1>Choose Email Method</h1>
+    <p class="subtitle">Select how you'd like us to send your job applications</p>
+  
+    <div class="options-container">
+      <!-- Option 1: Personal Gmail -->
+      <div class="option-card recommended" onclick="authorizeGmail()">
+        <span class="badge">Recommended</span>
+        <div class="option-header">
+          <div class="option-icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+            </svg>
+          </div>
+          <h3 class="option-title">Use My Gmail Account</h3>
+        </div>
+        <p class="option-description">
+          Applications will be sent from your personal Gmail address, giving them a professional, personal touch.
+        </p>
+        <div class="benefits">
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>Higher response rates from employers</span>
+          </div>
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>Applications appear more authentic</span>
+          </div>
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>You maintain full control</span>
+          </div>
+        </div>
+      </div>
+  
+      <!-- Option 2: Company Email -->
+      <div class="option-card" onclick="useCompanyEmail()">
+        <div class="option-header">
+          <div class="option-icon" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+            </svg>
+          </div>
+          <h3 class="option-title">Use IntelliJob Email</h3>
+        </div>
+        <p class="option-description">
+          Applications will be sent from our official email address. This option works but is not recommended.
+        </p>
+        <div class="benefits">
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>No authorization required</span>
+          </div>
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>Quick setup process</span>
+          </div>
+          <div class="benefit-item" style="color: #e53e3e;">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="fill: #e53e3e;">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            <span>May have lower response rates</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  
+    <div class="security-note">
+      <h3>
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+        </svg>
+        Your Security is Our Priority
+      </h3>
+      <ul>
+        <li>We only request permission to send emails on your behalf</li>
+        <li>We cannot read, access, or delete your existing emails</li>
+        <li>You can revoke access anytime from your Google Account settings</li>
+        <li>All data is encrypted and securely stored</li>
+        <li>We comply with Google's OAuth 2.0 security standards</li>
+      </ul>
+    </div>
+  
+    <div class="footer">
+      Powered by <strong>IntelliJob</strong> from Suntrenia
+    </div>
+  </div>
+  
+  <script>
+    const userId = '${userId}';
+    const jobId = '${jobId}';
+    const emailId = '${emailId}';
+    const responseId = '${responseId}';
+  
+    function authorizeGmail() {
+      document.getElementById('loading').classList.add('active');
+      const params = new URLSearchParams({ userId, jobId, emailId, responseId });
+      window.location.href = '/auth/google?' + params.toString();
+    }
+  
+    function useCompanyEmail() {
+      if (confirm('Are you sure you want to use our company email? Using your personal Gmail is recommended for better response rates.')) {
+        document.getElementById('loading').classList.add('active');
+        const params = new URLSearchParams({ userId, jobId, emailId, responseId });
+        window.location.href = '/auth/use-company-email?' + params.toString();
+      }
+    }
+  </script>
+  </body>
+  </html>`;
+  }
+  
+
+// Success HTML function
+function getSuccessHTML() {
+    return `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Authorization Complete</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+  
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      background-size: 300% 300%;
+      animation: gradientShift 6s ease infinite;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+  
+    .container {
+      max-width: 500px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      padding: 40px;
+      border-radius: 24px;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+      text-align: center;
+      animation: containerFloat 0.8s ease-out;
+    }
+  
+    @keyframes containerFloat {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  
+    .checkmark {
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
+      border-radius: 50%;
+      margin: 0 auto 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: scaleIn 0.5s ease;
+    }
+  
+    @keyframes scaleIn {
+      from { transform: scale(0); }
+      to { transform: scale(1); }
+    }
+  
+    .checkmark svg {
+      width: 50px;
+      height: 50px;
+      stroke: white;
+      stroke-width: 3;
+      fill: none;
+      animation: drawCheck 0.5s 0.3s ease forwards;
+      stroke-dasharray: 100;
+      stroke-dashoffset: 100;
+    }
+  
+    @keyframes drawCheck {
+      to { stroke-dashoffset: 0; }
+    }
+  
+    h1 {
+      color: #1a202c;
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 15px;
+    }
+  
+    p {
+      color: #4a5568;
+      font-size: 17px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+  
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px 40px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+  
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+  </style>
+  </head>
+  <body>
+  <div class="container">
+    <div class="checkmark">
+      <svg viewBox="0 0 52 52">
+        <polyline points="14,27 22,35 38,19" />
+      </svg>
+    </div>
+    <h1>All Set!</h1>
+    <p>Your authorization is complete. We'll now proceed with your application.</p>
+    <button class="btn" onclick="window.close()">Close Window</button>
+  </div>
+  </body>
+  </html>`;
+  }
+  
+
+// Route to initiate Google OAuth
+app.get('/auth/google', (req, res) => {
+    const { userId, jobId, emailId, responseId } = req.query;
+    
+    // Store these in session or pass as state parameter
+    const state = Buffer.from(JSON.stringify({ userId, jobId, emailId, responseId })).toString('base64');
+    
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
+      `redirect_uri=${encodeURIComponent(process.env.GOOGLE_REDIRECT_URI)}&` +
+      `response_type=code&` +
+      `scope=${encodeURIComponent('https://www.googleapis.com/auth/gmail.send')}&` +
+      `access_type=offline&` +
+      `prompt=consent&` +
+      `state=${state}`;
+    
+    res.redirect(googleAuthUrl);
+  });
+  
+  // OAuth callback route
+  app.get('/auth/google/callback', async (req, res) => {
+    const { code, state } = req.query;
+    
+    if (!code) {
+      return res.status(400).send('Authorization failed');
+    }
+    
+    try {
+      // Decode state to get user info
+      const { userId, jobId, emailId, responseId } = JSON.parse(Buffer.from(state, 'base64').toString());
+      
+      // Exchange code for tokens
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code,
+          client_id: process.env.GOOGLE_CLIENT_ID,
+          client_secret: process.env.GOOGLE_CLIENT_SECRET,
+          redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+          grant_type: 'authorization_code'
+        })
+      });
+      
+      const tokens = await tokenResponse.json();
+      
+      // Store tokens in database
+      const mongoClient = new MongoClient(process.env.MONGODB_URI);
+      await mongoClient.connect();
+      const db = mongoClient.db('olukayode_sage');
+      
+      await db.collection('user_gmail_tokens').updateOne(
+        { userId },
+        { 
+          $set: { 
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+            updatedAt: new Date(),
+            usePersonalEmail: true
+          } 
+        },
+        { upsert: true }
+      );
+      
+      await mongoClient.close();
+      
+      // Redirect to success page
+      res.send(getSuccessHTML());
+      
+    } catch (error) {
+      console.error('OAuth error:', error);
+      res.status(500).send('Authorization failed. Please try again.');
+    }
+  });
+  
+  // Route for using company email
+  app.get('/auth/use-company-email', async (req, res) => {
+    const { userId, jobId, emailId, responseId } = req.query;
+    
+    try {
+      const mongoClient = new MongoClient(process.env.MONGODB_URI);
+      await mongoClient.connect();
+      const db = mongoClient.db('olukayode_sage');
+      
+      // Mark user as using company email
+      await db.collection('user_gmail_tokens').updateOne(
+        { userId },
+        { 
+          $set: { 
+            usePersonalEmail: false,
+            updatedAt: new Date()
+          } 
+        },
+        { upsert: true }
+      );
+      
+      await mongoClient.close();
+      
+      // Redirect to success page
+      res.send(getSuccessHTML());
+      
+    } catch (error) {
+      console.error('Error setting company email:', error);
+      res.status(500).send('An error occurred. Please try again.');
+    }
+  });
 
 // Server startup with comprehensive logging
 server.listen(PORT, async () => {
