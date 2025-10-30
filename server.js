@@ -179,442 +179,1208 @@ app.get('/api/user-responses', async (req, res) => {
   }
 });
 
-// Enhanced checkForResponses with detailed logging
-app.get('/handle-response', async (req, res) => {
-  // Extract all parameters with default values and trim whitespace
-  const { 
-    response, 
-    emailId, 
-    jobId, 
-    userId, 
-    emailSubject = 'Not provided', 
-    companyName = 'Unknown Company', 
-    jobTitle = 'Unknown Position',
-    applicationStatus = 'pending',
-    emailDate = new Date().toISOString(),
-    emailFrom = 'Unknown Sender'
-  } = req.query;
 
-  // Trim all string parameters to remove whitespace
-  const trimmedUserId = (userId || '').trim();
-  const trimmedResponse = (response || '').trim();
-  const trimmedEmailId = (emailId || '').trim();
-  const trimmedJobId = (jobId || '').trim();
-  const trimmedEmailSubject = (emailSubject || '').trim();
-  const trimmedCompanyName = (companyName || '').trim();
-  const trimmedJobTitle = (jobTitle || '').trim();
 
-  console.log('\n🎯 HANDLE-RESPONSE CALLED:');
-  console.log('📩 Received parameters:', { 
-    response: `${response}`, 
-    emailId: `${emailId}`, 
-    jobId: `${jobId}`, 
-    userId: `${userId}`,
-    emailSubject: `${emailSubject}`,
-    companyName: `${companyName}`,
-    jobTitle: `${jobTitle}`
-  });
-  console.log('📩 Trimmed parameters:', { 
-    response: `${trimmedResponse}`, 
-    emailId: `${trimmedEmailId}`, 
-    jobId: `${trimmedJobId}`, 
-    userId: `${trimmedUserId}`,
-    emailSubject: `${trimmedEmailSubject}`,
-    companyName: `${trimmedCompanyName}`,
-    jobTitle: `${trimmedJobTitle}`
-  });
 
-  // Validate required parameters
-  if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
-    console.log('❌ Missing required parameters after trimming');
-    return res.status(400).send('Missing required parameters');
-  }
 
-  let mongoClient;
+// // Enhanced checkForResponses with detailed logging
+// app.get('/handle-response', async (req, res) => {
+//   // Extract all parameters with default values and trim whitespace
+//   const { 
+//     response, 
+//     emailId, 
+//     jobId, 
+//     userId, 
+//     emailSubject = 'Not provided', 
+//     companyName = 'Unknown Company', 
+//     jobTitle = 'Unknown Position',
+//     applicationStatus = 'pending',
+//     emailDate = new Date().toISOString(),
+//     emailFrom = 'Unknown Sender'
+//   } = req.query;
 
-  try {
-    console.log('🗄️ Connecting to MongoDB...');
-    mongoClient = new MongoClient(process.env.MONGODB_URI);
-    await mongoClient.connect();
-    console.log('✅ Connected to MongoDB');
+//   // Trim all string parameters to remove whitespace
+//   const trimmedUserId = (userId || '').trim();
+//   const trimmedResponse = (response || '').trim();
+//   const trimmedEmailId = (emailId || '').trim();
+//   const trimmedJobId = (jobId || '').trim();
+//   const trimmedEmailSubject = (emailSubject || '').trim();
+//   const trimmedCompanyName = (companyName || '').trim();
+//   const trimmedJobTitle = (jobTitle || '').trim();
 
-    const db = mongoClient.db('olukayode_sage');
+//   console.log('\n🎯 HANDLE-RESPONSE CALLED:');
+//   console.log('📩 Received parameters:', { 
+//     response: `${response}`, 
+//     emailId: `${emailId}`, 
+//     jobId: `${jobId}`, 
+//     userId: `${userId}`,
+//     emailSubject: `${emailSubject}`,
+//     companyName: `${companyName}`,
+//     jobTitle: `${jobTitle}`
+//   });
+//   console.log('📩 Trimmed parameters:', { 
+//     response: `${trimmedResponse}`, 
+//     emailId: `${trimmedEmailId}`, 
+//     jobId: `${trimmedJobId}`, 
+//     userId: `${trimmedUserId}`,
+//     emailSubject: `${trimmedEmailSubject}`,
+//     companyName: `${trimmedCompanyName}`,
+//     jobTitle: `${trimmedJobTitle}`
+//   });
 
-    // Store the response with ALL parameters and default values
-    console.log('💾 Storing response in database with all parameters...');
-    const responseData = {
-      userId: trimmedUserId,
-      response: trimmedResponse,
-      emailId: trimmedEmailId,
-      jobId: trimmedJobId,
-      emailSubject: trimmedEmailSubject,
-      companyName: trimmedCompanyName,
-      jobTitle: trimmedJobTitle,
-      applicationStatus: applicationStatus,
-      emailDate: emailDate,
-      emailFrom: emailFrom,
-      timestamp: new Date(),
-      processed: false
-    };
+//   // Validate required parameters
+//   if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
+//     console.log('❌ Missing required parameters after trimming');
+//     return res.status(400).send('Missing required parameters');
+//   }
 
-    const insertResult = await db.collection('user_application_response').insertOne(responseData);
+//   let mongoClient;
 
-    console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
-    console.log('📊 Stored data:', responseData);
+//   try {
+//     console.log('🗄️ Connecting to MongoDB...');
+//     mongoClient = new MongoClient(process.env.MONGODB_URI);
+//     await mongoClient.connect();
+//     console.log('✅ Connected to MongoDB');
 
-    // Immediate response check
-    console.log('🚀 Triggering immediate response check...');
-    const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
-    console.log('✅ Immediate check completed:', checkResult);
+//     const db = mongoClient.db('olukayode_sage');
 
-    // Update the record as processed
-    await db.collection('user_application_response').updateOne(
-      { _id: insertResult.insertedId },
-      { $set: { processed: true, processedAt: new Date() } }
-    );
-    console.log('✅ Response marked as processed');
+//     // Store the response with ALL parameters and default values
+//     console.log('💾 Storing response in database with all parameters...');
+//     const responseData = {
+//       userId: trimmedUserId,
+//       response: trimmedResponse,
+//       emailId: trimmedEmailId,
+//       jobId: trimmedJobId,
+//       emailSubject: trimmedEmailSubject,
+//       companyName: trimmedCompanyName,
+//       jobTitle: trimmedJobTitle,
+//       applicationStatus: applicationStatus,
+//       emailDate: emailDate,
+//       emailFrom: emailFrom,
+//       timestamp: new Date(),
+//       processed: false
+//     };
 
-    // 🔥 WEB SOCKET NOTIFICATION: Notify frontend that data is ready
-    const payload = {
-      type: trimmedResponse.toLowerCase(),   // 👈 dynamically set as 'proceed' or 'declined'
-      userId: trimmedUserId,
-      jobId: trimmedJobId,
-      emailId: trimmedEmailId,
-      responseId: insertResult.insertedId,
-      message: `User selected "${trimmedResponse}" for the application`,
-      timestamp: new Date().toISOString()
-    };
+//     const insertResult = await db.collection('user_application_response').insertOne(responseData);
 
-    wss.clients.forEach(client => {
-      if (client.readyState === client.OPEN) {
-        client.send(JSON.stringify(payload));
-      }
-    });
-    console.log('📢 WebSocket notification sent to all connected clients');
+//     console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
+//     console.log('📊 Stored data:', responseData);
 
-    await mongoClient.close();
-    console.log('✅ MongoDB connection closed');
+//     // Immediate response check
+//     console.log('🚀 Triggering immediate response check...');
+//     const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
+//     console.log('✅ Immediate check completed:', checkResult);
 
-    // Send success response
-    console.log('📤 Sending HTML response to client');
+//     // Update the record as processed
+//     await db.collection('user_application_response').updateOne(
+//       { _id: insertResult.insertedId },
+//       { $set: { processed: true, processedAt: new Date() } }
+//     );
+//     console.log('✅ Response marked as processed');
+
+//     // 🔥 WEB SOCKET NOTIFICATION: Notify frontend that data is ready
+//     const payload = {
+//       type: trimmedResponse.toLowerCase(),   // 👈 dynamically set as 'proceed' or 'declined'
+//       userId: trimmedUserId,
+//       jobId: trimmedJobId,
+//       emailId: trimmedEmailId,
+//       responseId: insertResult.insertedId,
+//       message: `User selected "${trimmedResponse}" for the application`,
+//       timestamp: new Date().toISOString()
+//     };
+
+//     wss.clients.forEach(client => {
+//       if (client.readyState === client.OPEN) {
+//         client.send(JSON.stringify(payload));
+//       }
+//     });
+//     console.log('📢 WebSocket notification sent to all connected clients');
+
+//     await mongoClient.close();
+//     console.log('✅ MongoDB connection closed');
+
+//     // Send success response
+//     console.log('📤 Sending HTML response to client');
     
-    // Determine if response is positive or negative
-    const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-    const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
+//     // Determine if response is positive or negative
+//     const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
+//     const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
     
-    // Send different HTML based on response type
-    if (isPositive) {
-        res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
-      } else {
-      // Negative response HTML
-      res.send(
-        `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Response Received</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
+//     // Send different HTML based on response type
+//     if (isPositive) {
+//         res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
+//       } else {
+//       // Negative response HTML
+//       res.send(
+//         `<!DOCTYPE html>
+//         <html lang="en">
+//         <head>
+//         <meta charset="UTF-8" />
+//         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+//         <title>Response Received</title>
+//         <style>
+//           * {
+//             margin: 0;
+//             padding: 0;
+//             box-sizing: border-box;
+//           }
         
-          body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            background-size: 300% 300%;
-            animation: gradientShift 6s ease infinite;
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
+//           body {
+//             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+//             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+//             background-size: 300% 300%;
+//             animation: gradientShift 6s ease infinite;
+//             margin: 0;
+//             padding: 20px;
+//             min-height: 100vh;
+//             display: flex;
+//             align-items: center;
+//             justify-content: center;
+//           }
         
-          @keyframes gradientShift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
+//           @keyframes gradientShift {
+//             0%, 100% { background-position: 0% 50%; }
+//             50% { background-position: 100% 50%; }
+//           }
         
-          .container {
-            max-width: 500px;
-            margin: 50px auto;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            padding: 40px;
-            border-radius: 24px;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            animation: containerFloat 0.8s ease-out;
-          }
+//           .container {
+//             max-width: 500px;
+//             margin: 50px auto;
+//             background: rgba(255, 255, 255, 0.95);
+//             backdrop-filter: blur(20px);
+//             padding: 40px;
+//             border-radius: 24px;
+//             box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+//             text-align: center;
+//             border: 1px solid rgba(255, 255, 255, 0.2);
+//             animation: containerFloat 0.8s ease-out;
+//           }
         
-          @keyframes containerFloat {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
+//           @keyframes containerFloat {
+//             from { opacity: 0; transform: translateY(30px); }
+//             to { opacity: 1; transform: translateY(0); }
+//           }
         
-          .circle {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);
-            border-radius: 50%;
-            margin: 0 auto 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 15px 35px rgba(255, 94, 98, 0.3);
-            position: relative;
-            animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s both;
-          }
+//           .circle {
+//             width: 100px;
+//             height: 100px;
+//             background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);
+//             border-radius: 50%;
+//             margin: 0 auto 30px;
+//             display: flex;
+//             align-items: center;
+//             justify-content: center;
+//             box-shadow: 0 15px 35px rgba(255, 94, 98, 0.3);
+//             position: relative;
+//             animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s both;
+//           }
         
-          .circle::before {
-            content: '';
-            position: absolute;
-            inset: -4px;
-            background: linear-gradient(135deg, #ff9966, #ff5e62);
-            border-radius: 50%;
-            z-index: -1;
-            opacity: 0.4;
-            animation: ripple 2.5s ease-in-out 1s infinite;
-          }
+//           .circle::before {
+//             content: '';
+//             position: absolute;
+//             inset: -4px;
+//             background: linear-gradient(135deg, #ff9966, #ff5e62);
+//             border-radius: 50%;
+//             z-index: -1;
+//             opacity: 0.4;
+//             animation: ripple 2.5s ease-in-out 1s infinite;
+//           }
         
-          @keyframes bounceIn {
-            from { transform: scale(0) rotate(180deg); }
-            to { transform: scale(1) rotate(0deg); }
-          }
+//           @keyframes bounceIn {
+//             from { transform: scale(0) rotate(180deg); }
+//             to { transform: scale(1) rotate(0deg); }
+//           }
         
-          @keyframes ripple {
-            0%, 100% { transform: scale(1); opacity: 0.4; }
-            50% { transform: scale(1.15); opacity: 0.7; }
-          }
+//           @keyframes ripple {
+//             0%, 100% { transform: scale(1); opacity: 0.4; }
+//             50% { transform: scale(1.15); opacity: 0.7; }
+//           }
         
-          .icon {
-            color: white;
-            font-size: 38px;
-            font-weight: bold;
-            opacity: 0;
-            animation: iconReveal 0.6s ease 1s both;
-          }
+//           .icon {
+//             color: white;
+//             font-size: 38px;
+//             font-weight: bold;
+//             opacity: 0;
+//             animation: iconReveal 0.6s ease 1s both;
+//           }
         
-          @keyframes iconReveal {
-            from { opacity: 0; transform: scale(0.5) rotate(-45deg); }
-            to { opacity: 1; transform: scale(1) rotate(0deg); }
-          }
+//           @keyframes iconReveal {
+//             from { opacity: 0; transform: scale(0.5) rotate(-45deg); }
+//             to { opacity: 1; transform: scale(1) rotate(0deg); }
+//           }
         
-          h1 {
-            color: #1a202c;
-            font-size: 32px;
-            font-weight: 800;
-            margin-bottom: 15px;
-            animation: slideUp 0.6s ease 0.4s both;
-          }
+//           h1 {
+//             color: #1a202c;
+//             font-size: 32px;
+//             font-weight: 800;
+//             margin-bottom: 15px;
+//             animation: slideUp 0.6s ease 0.4s both;
+//           }
         
-          p {
-            color: #4a5568;
-            font-size: 17px;
-            margin-bottom: 20px;
-            line-height: 1.6;
-            animation: slideUp 0.6s ease 0.6s both;
-          }
+//           p {
+//             color: #4a5568;
+//             font-size: 17px;
+//             margin-bottom: 20px;
+//             line-height: 1.6;
+//             animation: slideUp 0.6s ease 0.6s both;
+//           }
         
-          @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
+//           @keyframes slideUp {
+//             from { opacity: 0; transform: translateY(20px); }
+//             to { opacity: 1; transform: translateY(0); }
+//           }
         
-          .button-row {
-            display: flex;
-            gap: 20px;
-            margin: 35px 0;
-            animation: slideUp 0.6s ease 0.8s both;
-          }
+//           .button-row {
+//             display: flex;
+//             gap: 20px;
+//             margin: 35px 0;
+//             animation: slideUp 0.6s ease 0.8s both;
+//           }
         
-          .btn {
-            flex: 1;
-            padding: 16px 20px;
-            border: none;
-            border-radius: 16px;
-            cursor: pointer;
-            font-weight: 700;
-            font-size: 15px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
+//           .btn {
+//             flex: 1;
+//             padding: 16px 20px;
+//             border: none;
+//             border-radius: 16px;
+//             cursor: pointer;
+//             font-weight: 700;
+//             font-size: 15px;
+//             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+//             position: relative;
+//             overflow: hidden;
+//             text-transform: uppercase;
+//             letter-spacing: 0.5px;
+//           }
         
-          .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-            transition: left 0.5s;
-          }
+//           .btn::before {
+//             content: '';
+//             position: absolute;
+//             top: 0;
+//             left: -100%;
+//             width: 100%;
+//             height: 100%;
+//             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+//             transition: left 0.5s;
+//           }
         
-          .btn:hover::before {
-            left: 100%;
-          }
+//           .btn:hover::before {
+//             left: 100%;
+//           }
         
-          .btn:active {
-            transform: scale(0.98);
-          }
+//           .btn:active {
+//             transform: scale(0.98);
+//           }
         
-          .btn-blue {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
-          }
+//           .btn-blue {
+//             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+//             color: white;
+//             box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
+//           }
         
-          .btn-blue:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 25px rgba(102, 126, 234, 0.45);
-          }
+//           .btn-blue:hover {
+//             transform: translateY(-3px);
+//             box-shadow: 0 12px 25px rgba(102, 126, 234, 0.45);
+//           }
         
-          .footer {
-            margin-top: 35px;
-            color: #718096;
-            font-size: 14px;
-            animation: slideUp 0.6s ease 1s both;
-          }
+//           .footer {
+//             margin-top: 35px;
+//             color: #718096;
+//             font-size: 14px;
+//             animation: slideUp 0.6s ease 1s both;
+//           }
         
-          .footer strong {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-          }
+//           .footer strong {
+//             background: linear-gradient(135deg, #667eea, #764ba2);
+//             -webkit-background-clip: text;
+//             -webkit-text-fill-color: transparent;
+//             background-clip: text;
+//           }
         
-          @media (max-width: 480px) {
-            .container {
-              margin: 20px;
-              padding: 32px 24px;
-            }
+//           @media (max-width: 480px) {
+//             .container {
+//               margin: 20px;
+//               padding: 32px 24px;
+//             }
             
-            .button-row {
-              flex-direction: column;
-              gap: 16px;
-            }
+//             .button-row {
+//               flex-direction: column;
+//               gap: 16px;
+//             }
             
-            h1 {
-              font-size: 26px;
-            }
-          }
+//             h1 {
+//               font-size: 26px;
+//             }
+//           }
         
-          .exit-message {
-            display: none;
-            text-align: center;
-            padding: 60px 40px;
-            font-family: sans-serif;
-            color: white;
-            animation: fadeIn 0.5s ease;
-          }
+//           .exit-message {
+//             display: none;
+//             text-align: center;
+//             padding: 60px 40px;
+//             font-family: sans-serif;
+//             color: white;
+//             animation: fadeIn 0.5s ease;
+//           }
         
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
+//           @keyframes fadeIn {
+//             from { opacity: 0; }
+//             to { opacity: 1; }
+//           }
         
-          .exit-message h2 {
-            font-size: 28px;
-            margin-bottom: 15px;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-          }
+//           .exit-message h2 {
+//             font-size: 28px;
+//             margin-bottom: 15px;
+//             text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+//           }
         
-          .exit-message p {
-            font-size: 18px;
-            opacity: 0.9;
-          }
-        </style>
-        </head>
-        <body>
-        <div class="container">
-          <div class="circle">
-            <div class="icon">✓</div>
-          </div>
-          <h1>Response Received</h1>
-          <p>We've noted your decision not to proceed with this application.</p>
-          <div class="button-row">
-            <button class="btn btn-blue" onclick="exitPage()">
-              Exit
-            </button>
-          </div>
-          <div class="footer">
-            Powered by <strong>IntelliJob</strong> from Suntrenia
-          </div>
-        </div>
+//           .exit-message p {
+//             font-size: 18px;
+//             opacity: 0.9;
+//           }
+//         </style>
+//         </head>
+//         <body>
+//         <div class="container">
+//           <div class="circle">
+//             <div class="icon">✓</div>
+//           </div>
+//           <h1>Response Received</h1>
+//           <p>We've noted your decision not to proceed with this application.</p>
+//           <div class="button-row">
+//             <button class="btn btn-blue" onclick="exitPage()">
+//               Exit
+//             </button>
+//           </div>
+//           <div class="footer">
+//             Powered by <strong>IntelliJob</strong> from Suntrenia
+//           </div>
+//         </div>
         
-        <div class="exit-message">
-          <h2>You can safely close this tab now</h2>
-          <p>Thank you for using IntelliJob!</p>
-        </div>
+//         <div class="exit-message">
+//           <h2>You can safely close this tab now</h2>
+//           <p>Thank you for using IntelliJob!</p>
+//         </div>
         
-        <script>
-          console.log('Response processed successfully');
+//         <script>
+//           console.log('Response processed successfully');
           
-          function exitPage() {
-            document.querySelector('.container').style.display = 'none';
-            document.querySelector('.exit-message').style.display = 'block';
+//           function exitPage() {
+//             document.querySelector('.container').style.display = 'none';
+//             document.querySelector('.exit-message').style.display = 'block';
             
-            setTimeout(() => {
-              try {
-                window.close();
-              } catch (e) {
-                console.log('Cannot close window');
-              }
+//             setTimeout(() => {
+//               try {
+//                 window.close();
+//               } catch (e) {
+//                 console.log('Cannot close window');
+//               }
               
-              setTimeout(() => {
-                try {
-                  if (window.history.length > 1) {
-                    window.history.back();
-                  }
-                } catch (e) {
-                  console.log('Cannot go back');
-                }
-              }, 500);
-            }, 1000);
-          }
+//               setTimeout(() => {
+//                 try {
+//                   if (window.history.length > 1) {
+//                     window.history.back();
+//                   }
+//                 } catch (e) {
+//                   console.log('Cannot go back');
+//                 }
+//               }, 500);
+//             }, 1000);
+//           }
           
-          document.querySelectorAll('.btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-              this.style.transform = 'scale(0.98) translateY(-3px)';
-              setTimeout(() => {
-                this.style.transform = '';
-              }, 150);
-            });
-          });
-        </script>
-        </body>
+//           document.querySelectorAll('.btn').forEach(btn => {
+//             btn.addEventListener('click', function() {
+//               this.style.transform = 'scale(0.98) translateY(-3px)';
+//               setTimeout(() => {
+//                 this.style.transform = '';
+//               }, 150);
+//             });
+//           });
+//         </script>
+//         </body>
+//         </html>`
+//       );
+//     }
+    
+//   } catch (err) {
+//     console.error('❌ ERROR in handle-response:', err);
+//     console.error('Stack trace:', err.stack);
+    
+//     if (mongoClient) {
+//       await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+//     }
+    
+//     res.status(500).send(
+//       `<html>
+//         <body>
+//           <h1>Server Error</h1>
+//           <p>Please try again later. If the problem persists, contact support.</p>
+//           <p><small>Error: ${err.message}</small></p>
+//         </body>
+//       </html>`
+//     );
+//   }
+// });
+app.get('/handle-response', async (req, res) => {
+    const { 
+      response, 
+      emailId, 
+      jobId, 
+      userId, 
+      emailSubject = 'Not provided', 
+      companyName = 'Unknown Company', 
+      jobTitle = 'Unknown Position',
+      applicationStatus = 'pending',
+      emailDate = new Date().toISOString(),
+      emailFrom = 'Unknown Sender'
+    } = req.query;
+  
+    const trimmedUserId = (userId || '').trim();
+    const trimmedResponse = (response || '').trim();
+    const trimmedEmailId = (emailId || '').trim();
+    const trimmedJobId = (jobId || '').trim();
+    const trimmedEmailSubject = (emailSubject || '').trim();
+    const trimmedCompanyName = (companyName || '').trim();
+    const trimmedJobTitle = (jobTitle || '').trim();
+  
+    console.log('\n🎯 HANDLE-RESPONSE CALLED:');
+    console.log('📩 Received parameters:', { 
+      response: trimmedResponse, 
+      userId: trimmedUserId,
+      jobId: trimmedJobId
+    });
+  
+    if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
+      console.log('❌ Missing required parameters');
+      return res.status(400).send('Missing required parameters');
+    }
+  
+    let mongoClient;
+  
+    try {
+      console.log('🗄️ Connecting to MongoDB...');
+      mongoClient = new MongoClient(process.env.MONGODB_URI);
+      await mongoClient.connect();
+      console.log('✅ Connected to MongoDB');
+  
+      const db = mongoClient.db('olukayode_sage');
+  
+      // Store the response
+      console.log('💾 Storing response in database...');
+      const responseData = {
+        userId: trimmedUserId,
+        response: trimmedResponse,
+        emailId: trimmedEmailId,
+        jobId: trimmedJobId,
+        emailSubject: trimmedEmailSubject,
+        companyName: trimmedCompanyName,
+        jobTitle: trimmedJobTitle,
+        applicationStatus: applicationStatus,
+        emailDate: emailDate,
+        emailFrom: emailFrom,
+        timestamp: new Date(),
+        processed: false
+      };
+  
+      const insertResult = await db.collection('user_application_response').insertOne(responseData);
+      console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
+  
+      // 🔥 Immediate response check (keep this logic!)
+      console.log('🚀 Triggering immediate response check...');
+      const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
+      console.log('✅ Immediate check completed:', checkResult);
+  
+      // Update as processed
+      await db.collection('user_application_response').updateOne(
+        { _id: insertResult.insertedId },
+        { $set: { processed: true, processedAt: new Date() } }
+      );
+      console.log('✅ Response marked as processed');
+  
+      // 🔥 Send WebSocket notification
+      const payload = {
+        type: trimmedResponse.toLowerCase(),
+        userId: trimmedUserId,
+        jobId: trimmedJobId,
+        emailId: trimmedEmailId,
+        responseId: insertResult.insertedId,
+        message: `User selected "${trimmedResponse}" for the application`,
+        timestamp: new Date().toISOString()
+      };
+  
+      wss.clients.forEach(client => {
+        if (client.readyState === client.OPEN) {
+          client.send(JSON.stringify(payload));
+        }
+      });
+      console.log('📢 WebSocket notification sent');
+  
+      await mongoClient.close();
+      console.log('✅ MongoDB connection closed');
+  
+      // Determine if response is positive
+      const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
+      const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
+      
+      if (isPositive) {
+        // 🔥 CHECK AUTHORIZATION
+        const authorized = await checkIfUserAuthorized(trimmedUserId);
+        
+        if (!authorized) {
+          console.log(`🔐 User ${trimmedUserId} not authorized - showing authorization page`);
+          // Show authorization page
+          res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
+        } else {
+          console.log(`✅ User ${trimmedUserId} already authorized - processing application`);
+          // User is already authorized, process immediately
+          await checkForResponses(trimmedUserId, trimmedEmailId, trimmedJobId, 'proceed');
+          // Show success page with positive message
+          res.send(getSuccessHTMLPositive());
+        }
+      } else {
+        // Negative response - show decline page
+        res.send(getSuccessHTMLNegative());
+      }
+      
+    } catch (err) {
+      console.error('❌ ERROR in handle-response:', err);
+      console.error('❌ Error stack:', err.stack);
+      
+      if (mongoClient) {
+        await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+      }
+      
+      res.status(500).send(
+        `<html>
+          <body>
+            <h1>Server Error</h1>
+            <p>Please try again later. If the problem persists, contact support.</p>
+            <p><small>Error: ${err.message}</small></p>
+          </body>
         </html>`
       );
     }
-    
-  } catch (err) {
-    console.error('❌ ERROR in handle-response:', err);
-    console.error('Stack trace:', err.stack);
-    
-    if (mongoClient) {
-      await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+  });
+ 
+  // Beautiful Authorization Page HTML
+function getAuthorizationHTML(userId, jobId, emailId, responseId) {
+    return `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Email Authorization</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    
-    res.status(500).send(
-      `<html>
-        <body>
-          <h1>Server Error</h1>
-          <p>Please try again later. If the problem persists, contact support.</p>
-          <p><small>Error: ${err.message}</small></p>
-        </body>
-      </html>`
-    );
+  
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      background-size: 300% 300%;
+      animation: gradientShift 8s ease infinite;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+  
+    .container {
+      max-width: 650px;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(30px);
+      padding: 50px 40px;
+      border-radius: 28px;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
+      text-align: center;
+      animation: slideUp 0.6s ease-out;
+      position: relative;
+      overflow: hidden;
+    }
+  
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+      background-size: 200% 100%;
+      animation: shimmer 3s linear infinite;
+    }
+  
+    @keyframes shimmer {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 200% 0%; }
+    }
+  
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  
+    .icon-wrapper {
+      width: 120px;
+      height: 120px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      margin: 0 auto 35px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      animation: float 3s ease-in-out infinite;
+      box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+    }
+  
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+  
+    .icon-wrapper::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      border-radius: 50%;
+      z-index: -1;
+      opacity: 0.3;
+      animation: pulse 2s ease-in-out infinite;
+    }
+  
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.3; }
+      50% { transform: scale(1.1); opacity: 0.5; }
+    }
+  
+    .icon-wrapper svg {
+      width: 60px;
+      height: 60px;
+      fill: white;
+    }
+  
+    h1 {
+      color: #1a202c;
+      font-size: 36px;
+      font-weight: 900;
+      margin-bottom: 15px;
+      letter-spacing: -0.5px;
+    }
+  
+    .subtitle {
+      color: #4a5568;
+      font-size: 18px;
+      margin-bottom: 40px;
+      line-height: 1.7;
+      font-weight: 500;
+    }
+  
+    .options-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+  
+    .option-card {
+      background: white;
+      border: 3px solid transparent;
+      border-radius: 20px;
+      padding: 30px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    }
+  
+    .option-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+      border-color: #667eea;
+    }
+  
+    .option-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+      transition: left 0.5s;
+    }
+  
+    .option-card:hover::before {
+      left: 100%;
+    }
+  
+    .recommended {
+      border-color: #00c851;
+      background: linear-gradient(135deg, rgba(0, 200, 81, 0.05) 0%, rgba(0, 200, 81, 0.02) 100%);
+    }
+  
+    .recommended .badge {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
+      color: white;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 4px 12px rgba(0, 200, 81, 0.3);
+    }
+  
+    .option-header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 15px;
+      text-align: left;
+    }
+  
+    .option-icon {
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+  
+    .option-icon svg {
+      width: 28px;
+      height: 28px;
+      fill: white;
+    }
+  
+    .option-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1a202c;
+      margin: 0;
+    }
+  
+    .option-description {
+      color: #4a5568;
+      font-size: 15px;
+      line-height: 1.6;
+      text-align: left;
+      margin-bottom: 20px;
+    }
+  
+    .benefits {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: left;
+    }
+  
+    .benefit-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #2d3748;
+      font-size: 14px;
+    }
+  
+    .benefit-item svg {
+      width: 18px;
+      height: 18px;
+      fill: #00c851;
+      flex-shrink: 0;
+    }
+  
+    .security-note {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+      border-left: 4px solid #667eea;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: left;
+      margin-top: 30px;
+    }
+  
+    .security-note h3 {
+      color: #1a202c;
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  
+    .security-note h3 svg {
+      width: 20px;
+      height: 20px;
+      fill: #667eea;
+    }
+  
+    .security-note ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+  
+    .security-note li {
+      color: #4a5568;
+      font-size: 14px;
+      line-height: 1.8;
+      padding-left: 24px;
+      position: relative;
+    }
+  
+    .security-note li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #667eea;
+      font-weight: bold;
+    }
+  
+    .footer {
+      margin-top: 40px;
+      padding-top: 30px;
+      border-top: 2px solid rgba(0, 0, 0, 0.06);
+      color: #718096;
+      font-size: 14px;
+    }
+  
+    .footer strong {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 800;
+    }
+  
+    @media (max-width: 768px) {
+      .container {
+        padding: 40px 25px;
+      }
+  
+      h1 {
+        font-size: 28px;
+      }
+  
+      .subtitle {
+        font-size: 16px;
+      }
+  
+      .option-card {
+        padding: 25px;
+      }
+  
+      .option-title {
+        font-size: 19px;
+      }
+    }
+  
+    .loading {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+  
+    .loading.active {
+      display: flex;
+    }
+  
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+  </head>
+  <body>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+  </div>
+  
+  <div class="container">
+    <div class="icon-wrapper">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+      </svg>
+    </div>
+  
+    <h1>Choose Email Method</h1>
+    <p class="subtitle">Select how you'd like us to send your job applications</p>
+  
+    <div class="options-container">
+      <!-- Option 1: Personal Gmail -->
+      <div class="option-card recommended" onclick="authorizeGmail()">
+        <span class="badge">Recommended</span>
+        <div class="option-header">
+          <div class="option-icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+            </svg>
+          </div>
+          <h3 class="option-title">Use My Gmail Account</h3>
+        </div>
+        <p class="option-description">
+          Applications will be sent from your personal Gmail address, giving them a professional, personal touch.
+        </p>
+        <div class="benefits">
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>Higher response rates from employers</span>
+          </div>
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>Applications appear more authentic</span>
+          </div>
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>You maintain full control</span>
+          </div>
+        </div>
+      </div>
+  
+      <!-- Option 2: Company Email -->
+      <div class="option-card" onclick="useCompanyEmail()">
+        <div class="option-header">
+          <div class="option-icon" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+            </svg>
+          </div>
+          <h3 class="option-title">Use IntelliJob Email</h3>
+        </div>
+        <p class="option-description">
+          Applications will be sent from our official email address. This option works but is not recommended.
+        </p>
+        <div class="benefits">
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>No authorization required</span>
+          </div>
+          <div class="benefit-item">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>Quick setup process</span>
+          </div>
+          <div class="benefit-item" style="color: #e53e3e;">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="fill: #e53e3e;">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            <span>May have lower response rates</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  
+    <div class="security-note">
+      <h3>
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+        </svg>
+        Your Security is Our Priority
+      </h3>
+      <ul>
+        <li>We only request permission to send emails on your behalf</li>
+        <li>We cannot read, access, or delete your existing emails</li>
+        <li>You can revoke access anytime from your Google Account settings</li>
+        <li>All data is encrypted and securely stored</li>
+        <li>We comply with Google's OAuth 2.0 security standards</li>
+      </ul>
+    </div>
+  
+    <div class="footer">
+      Powered by <strong>IntelliJob</strong> from Suntrenia
+    </div>
+  </div>
+  
+  <script>
+    const userId = '${userId}';
+    const jobId = '${jobId}';
+    const emailId = '${emailId}';
+    const responseId = '${responseId}';
+  
+    function authorizeGmail() {
+      document.getElementById('loading').classList.add('active');
+      const params = new URLSearchParams({ userId, jobId, emailId, responseId });
+      window.location.href = '/auth/google?' + params.toString();
+    }
+  
+    function useCompanyEmail() {
+      if (confirm('Are you sure you want to use our company email? Using your personal Gmail is recommended for better response rates.')) {
+        document.getElementById('loading').classList.add('active');
+        const params = new URLSearchParams({ userId, jobId, emailId, responseId });
+        window.location.href = '/auth/use-company-email?' + params.toString();
+      }
+    }
+  </script>
+  </body>
+  </html>`;
   }
-});
+ 
+// Success page for positive response (after authorization or if already authorized)
+function getSuccessHTMLPositive() {
+    return `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Success</title>
+      <style>
+        body {
+          font-family: 'Segoe UI', sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          margin: 0;
+        }
+        .container {
+          background: white;
+          padding: 40px;
+          border-radius: 20px;
+          text-align: center;
+          max-width: 400px;
+        }
+        .checkmark {
+          width: 80px;
+          height: 80px;
+          background: #00c851;
+          border-radius: 50%;
+          margin: 0 auto 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 40px;
+          color: white;
+        }
+        h1 { color: #1a202c; margin-bottom: 10px; }
+        p { color: #4a5568; line-height: 1.6; }
+        button {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          color: white;
+          border: none;
+          padding: 12px 30px;
+          border-radius: 10px;
+          font-weight: bold;
+          cursor: pointer;
+          margin-top: 20px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="checkmark">✓</div>
+        <h1>Success!</h1>
+        <p>Your application is being processed.</p>
+        <button onclick="window.close()">Close</button>
+      </div>
+    </body>
+    </html>`;
+  }
+  
+  // Success page for negative response
+  function getSuccessHTMLNegative() {
+    return `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Response Received</title>
+      <style>
+        body {
+          font-family: 'Segoe UI', sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          margin: 0;
+        }
+        .container {
+          background: white;
+          padding: 40px;
+          border-radius: 20px;
+          text-align: center;
+          max-width: 400px;
+        }
+        .icon {
+          width: 80px;
+          height: 80px;
+          background: #ff9966;
+          border-radius: 50%;
+          margin: 0 auto 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 40px;
+          color: white;
+        }
+        h1 { color: #1a202c; margin-bottom: 10px; }
+        p { color: #4a5568; line-height: 1.6; }
+        button {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          color: white;
+          border: none;
+          padding: 12px 30px;
+          border-radius: 10px;
+          font-weight: bold;
+          cursor: pointer;
+          margin-top: 20px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="icon">✓</div>
+        <h1>Response Received</h1>
+        <p>We've noted your decision not to proceed with this application.</p>
+        <button onclick="window.close()">Close</button>
+      </div>
+    </body>
+    </html>`;
+  }
+
 
 // Enhanced helper function
 async function checkForResponsesImmediately(userId, emailId, jobId) {
