@@ -1,6 +1,4 @@
 
-
-
 const WebSocket = require('ws');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
@@ -117,7 +115,22 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
+// Add this test route before your main routes
+app.get('/test-oauth', (req, res) => {
+    const oauthConfig = {
+      hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      hasRedirectUri: !!process.env.GOOGLE_REDIRECT_URI,
+      clientIdLength: process.env.GOOGLE_CLIENT_ID?.length,
+      redirectUri: process.env.GOOGLE_REDIRECT_URI
+    };
+    
+    res.json({
+      message: 'OAuth Configuration Test',
+      config: oauthConfig,
+      timestamp: new Date().toISOString()
+    });
+  });
 // NEW ENDPOINT: Get all user responses
 app.get('/api/user-responses', async (req, res) => {
   const { userId } = req.query;
@@ -1153,9 +1166,31 @@ function getAuthorizationHTML(userId, jobId, emailId, responseId) {
     const responseId = '${responseId}';
   
     function authorizeGmail() {
+        console.log('🔵 authorizeGmail() function called');
+        console.log('🔵 UserId:', userId);
+        console.log('🔵 JobId:', jobId);
+        console.log('🔵 EmailId:', emailId);
+        console.log('🔵 ResponseId:', responseId);
       document.getElementById('loading').classList.add('active');
       const params = new URLSearchParams({ userId, jobId, emailId, responseId });
+
+      const redirectUrl = '/auth/google?' + params.toString();
+  
+      console.log('🔵 Redirect URL:', redirectUrl);
+      console.log('🔵 Google Client ID available:', !!process.env.GOOGLE_CLIENT_ID);
+      console.log('🔵 Google Redirect URI available:', !!process.env.GOOGLE_REDIRECT_URI);
+
       window.location.href = '/auth/google?' + params.toString();
+
+      // Check if we have the basic OAuth config
+      if (!process.env.GOOGLE_CLIENT_ID) {
+        console.log('❌ OAuth not configured, using fallback');
+        // Use fallback route
+        const params = new URLSearchParams({ userId, jobId, emailId, responseId });
+        window.location.href = '/auth/fallback?' + params.toString();
+        return;
+      }
+
     }
   
     function useCompanyEmail() {
@@ -1300,8 +1335,50 @@ function getSuccessHTML() {
   
 
 // Route to initiate Google OAuth
+// app.get('/auth/google', (req, res) => {
+//     const { userId, jobId, emailId, responseId } = req.query;
+    
+//     // Store these in session or pass as state parameter
+//     const state = Buffer.from(JSON.stringify({ userId, jobId, emailId, responseId })).toString('base64');
+    
+//     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+//       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
+//       `redirect_uri=${encodeURIComponent(process.env.GOOGLE_REDIRECT_URI)}&` +
+//       `response_type=code&` +
+//       `scope=${encodeURIComponent('https://www.googleapis.com/auth/gmail.send')}&` +
+//       `access_type=offline&` +
+//       `prompt=consent&` +
+//       `state=${state}`;
+    
+//     res.redirect(googleAuthUrl);
+//   });
+  // Route to initiate Google OAuth
 app.get('/auth/google', (req, res) => {
+    console.log('🔄 /auth/google route hit');
+    console.log('📋 Query parameters:', req.query);
+    
     const { userId, jobId, emailId, responseId } = req.query;
+    
+    // Validate required parameters
+    if (!userId || !jobId) {
+      console.log('❌ Missing required parameters for OAuth');
+      return res.status(400).send('Missing required parameters');
+    }
+    
+    // Check if Google OAuth is configured
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REDIRECT_URI) {
+      console.log('❌ Google OAuth not configured');
+      return res.status(500).send(`
+        <html>
+          <body>
+            <h1>OAuth Not Configured</h1>
+            <p>Google OAuth is not properly configured on the server.</p>
+            <p>Please contact support or use the company email option.</p>
+            <button onclick="window.history.back()">Go Back</button>
+          </body>
+        </html>
+      `);
+    }
     
     // Store these in session or pass as state parameter
     const state = Buffer.from(JSON.stringify({ userId, jobId, emailId, responseId })).toString('base64');
@@ -1315,9 +1392,51 @@ app.get('/auth/google', (req, res) => {
       `prompt=consent&` +
       `state=${state}`;
     
+    console.log('🔗 Redirecting to Google OAuth:', googleAuthUrl);
     res.redirect(googleAuthUrl);
   });
-  
+
+  // Fallback route if OAuth is not configured
+app.get('/auth/fallback', (req, res) => {
+    const { userId, jobId, emailId, responseId } = req.query;
+    
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>OAuth Not Available</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; text-align: center; }
+          .container { max-width: 500px; margin: 0 auto; }
+          .btn { 
+            background: #667eea; 
+            color: white; 
+            padding: 12px 24px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer;
+            margin: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>Gmail Authorization Not Available</h1>
+          <p>Personal Gmail authorization is currently not configured.</p>
+          <p>Please use the company email option instead.</p>
+          <button class="btn" onclick="useCompanyEmail()">Use Company Email</button>
+          <button class="btn" onclick="window.history.back()">Go Back</button>
+        </div>
+        <script>
+          function useCompanyEmail() {
+            const params = new URLSearchParams(${JSON.stringify({ userId, jobId, emailId, responseId })});
+            window.location.href = '/auth/use-company-email?' + params.toString();
+          }
+        </script>
+      </body>
+      </html>
+    `);
+  });
   // OAuth callback route
   app.get('/auth/google/callback', async (req, res) => {
     const { code, state } = req.query;
@@ -1421,4 +1540,5 @@ server.listen(PORT, async () => {
 
   console.log(`\n✅ Server running on http://localhost:${PORT}`);
   console.log('📊 Logs available in Render Dashboard → Your Service → Logs');
-});
+}); 
+
