@@ -362,497 +362,530 @@ app.get('/api/user-responses', async (req, res) => {
 });
 
 // Enhanced checkForResponses with detailed logging
+
+// Enhanced handle-response - REMOVE OLD IMMEDIATE CHECK
 app.get('/handle-response', async (req, res) => {
-  // Extract all parameters with default values and trim whitespace
-  const { 
-    response, 
-    emailId, 
-    jobId, 
-    userId, 
-    emailSubject = 'Not provided', 
-    companyName = 'Unknown Company', 
-    jobTitle = 'Unknown Position',
-    applicationStatus = 'pending',
-    emailDate = new Date().toISOString(),
-    emailFrom = 'Unknown Sender'
-  } = req.query;
-
-  // Trim all string parameters to remove whitespace
-  const trimmedUserId = (userId || '').trim();
-  const trimmedResponse = (response || '').trim();
-  const trimmedEmailId = (emailId || '').trim();
-  const trimmedJobId = (jobId || '').trim();
-  const trimmedEmailSubject = (emailSubject || '').trim();
-  const trimmedCompanyName = (companyName || '').trim();
-  const trimmedJobTitle = (jobTitle || '').trim();
-
-  console.log('\n🎯 HANDLE-RESPONSE CALLED:');
-  console.log('📩 Received parameters:', { 
-    response: `${response}`, 
-    emailId: `${emailId}`, 
-    jobId: `${jobId}`, 
-    userId: `${userId}`,
-    emailSubject: `${emailSubject}`,
-    companyName: `${companyName}`,
-    jobTitle: `${jobTitle}`
-  });
-  console.log('📩 Trimmed parameters:', { 
-    response: `${trimmedResponse}`, 
-    emailId: `${trimmedEmailId}`, 
-    jobId: `${trimmedJobId}`, 
-    userId: `${trimmedUserId}`,
-    emailSubject: `${trimmedEmailSubject}`,
-    companyName: `${trimmedCompanyName}`,
-    jobTitle: `${trimmedJobTitle}`
-  });
-
-  // Validate required parameters
-  if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
-    console.log('❌ Missing required parameters after trimming');
-    return res.status(400).send('Missing required parameters');
-  }
-
-  let mongoClient;
-
-  try {
-    console.log('🗄️ Connecting to MongoDB...');
-    mongoClient = new MongoClient(process.env.MONGODB_URI);
-    await mongoClient.connect();
-    console.log('✅ Connected to MongoDB');
-
-    const db = mongoClient.db('olukayode_sage');
-
-    // Store the response with ALL parameters and default values
-    console.log('💾 Storing response in database with all parameters...');
-    const responseData = {
-      userId: trimmedUserId,
-      response: trimmedResponse,
-      emailId: trimmedEmailId,
-      jobId: trimmedJobId,
-      emailSubject: trimmedEmailSubject,
-      companyName: trimmedCompanyName,
-      jobTitle: trimmedJobTitle,
-      applicationStatus: applicationStatus,
-      emailDate: emailDate,
-      emailFrom: emailFrom,
-      timestamp: new Date(),
-      processed: false
-    };
-
-    const insertResult = await db.collection('user_application_response').insertOne(responseData);
-
-    console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
-    console.log('📊 Stored data:', responseData);
-
-    // Immediate response check
-    console.log('🚀 Triggering immediate response check...');
-    const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
-    console.log('✅ Immediate check completed:', checkResult);
-
-    // Update the record as processed
-    await db.collection('user_application_response').updateOne(
-      { _id: insertResult.insertedId },
-      { $set: { processed: true, processedAt: new Date() } }
-    );
-    console.log('✅ Response marked as processed');
-
-    // 🔥 WEB SOCKET NOTIFICATION: Notify frontend that data is ready
-    const payload = {
-      type: trimmedResponse.toLowerCase(),   // 👈 dynamically set as 'proceed' or 'declined'
-      userId: trimmedUserId,
-      jobId: trimmedJobId,
-      emailId: trimmedEmailId,
-      responseId: insertResult.insertedId,
-      message: `User selected "${trimmedResponse}" for the application`,
-      timestamp: new Date().toISOString()
-    };
-
-    wss.clients.forEach(client => {
-      if (client.readyState === client.OPEN) {
-        client.send(JSON.stringify(payload));
-      }
-    });
-    console.log('📢 WebSocket notification sent to all connected clients');
-
-    await mongoClient.close();
-    console.log('✅ MongoDB connection closed');
-
-    // Send success response
-    console.log('📤 Sending HTML response to client');
-    
-    // Determine if response is positive or negative
-    const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-    const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
-    
-    // Send different HTML based on response type
-    if (isPositive) {
-        res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
+    const { 
+      response, 
+      emailId, 
+      jobId, 
+      userId, 
+      emailSubject = 'Not provided', 
+      companyName = 'Unknown Company', 
+      jobTitle = 'Unknown Position',
+      applicationStatus = 'pending',
+      emailDate = new Date().toISOString(),
+      emailFrom = 'Unknown Sender'
+    } = req.query;
+  
+    const trimmedUserId = (userId || '').trim();
+    const trimmedResponse = (response || '').trim();
+    const trimmedEmailId = (emailId || '').trim();
+    const trimmedJobId = (jobId || '').trim();
+    const trimmedEmailSubject = (emailSubject || '').trim();
+    const trimmedCompanyName = (companyName || '').trim();
+    const trimmedJobTitle = (jobTitle || '').trim();
+  
+    console.log('\n🎯 HANDLE-RESPONSE CALLED');
+    console.log('📩 Response:', trimmedResponse, 'User:', trimmedUserId);
+  
+    if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
+      console.log('❌ Missing required parameters');
+      return res.status(400).send('Missing required parameters');
+    }
+  
+    let mongoClient;
+  
+    try {
+      console.log('🗄️ Connecting to MongoDB...');
+      mongoClient = new MongoClient(process.env.MONGODB_URI);
+      await mongoClient.connect();
+      console.log('✅ Connected to MongoDB');
+  
+      const db = mongoClient.db('olukayode_sage');
+  
+      // Store the response
+      console.log('💾 Storing response in database...');
+      const responseData = {
+        userId: trimmedUserId,
+        response: trimmedResponse,
+        emailId: trimmedEmailId,
+        jobId: trimmedJobId,
+        emailSubject: trimmedEmailSubject,
+        companyName: trimmedCompanyName,
+        jobTitle: trimmedJobTitle,
+        applicationStatus: applicationStatus,
+        emailDate: emailDate,
+        emailFrom: emailFrom,
+        timestamp: new Date(),
+        processed: false
+      };
+  
+      const insertResult = await db.collection('user_application_response').insertOne(responseData);
+      console.log('✅ Response stored with ID:', insertResult.insertedId);
+  
+      // ❌ REMOVED: checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
+      // This is now handled by WebSocket → Frontend → checkForResponses
+  
+      // Determine response type
+      const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
+      const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
+      
+      // 🔥 WebSocket notification - Frontend will handle the logic
+      const payload = {
+        type: trimmedResponse.toLowerCase(),
+        userId: trimmedUserId,
+        jobId: trimmedJobId,
+        emailId: trimmedEmailId,
+        responseId: insertResult.insertedId.toString(),
+        message: `User selected "${trimmedResponse}"`,
+        companyName: trimmedCompanyName,
+        jobTitle: trimmedJobTitle,
+        timestamp: new Date().toISOString()
+      };
+  
+      wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(payload));
+        }
+      });
+      console.log('📢 WebSocket notification sent to all connected clients');
+  
+      await mongoClient.close();
+      console.log('✅ MongoDB connection closed');
+  
+      // Send appropriate HTML response
+      if (isPositive) {
+        // Check if user is already authorized
+        const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
+        
+        if (isAuthorized) {
+          console.log('✅ User already authorized - showing proceeding page');
+          res.send(getAlreadyAuthorizedHTML(trimmedUserId, trimmedCompanyName, trimmedJobTitle));
+        } else {
+          console.log('❌ User needs authorization - showing auth options');
+          res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
+        }
       } else {
-      // Negative response HTML
-      res.send(
-        `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Response Received</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-        
-          body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            background-size: 300% 300%;
-            animation: gradientShift 6s ease infinite;
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-        
-          @keyframes gradientShift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
-        
-          .container {
-            max-width: 500px;
-            margin: 50px auto;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            padding: 40px;
-            border-radius: 24px;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            animation: containerFloat 0.8s ease-out;
-          }
-        
-          @keyframes containerFloat {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-        
-          .circle {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);
-            border-radius: 50%;
-            margin: 0 auto 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 15px 35px rgba(255, 94, 98, 0.3);
-            position: relative;
-            animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s both;
-          }
-        
-          .circle::before {
-            content: '';
-            position: absolute;
-            inset: -4px;
-            background: linear-gradient(135deg, #ff9966, #ff5e62);
-            border-radius: 50%;
-            z-index: -1;
-            opacity: 0.4;
-            animation: ripple 2.5s ease-in-out 1s infinite;
-          }
-        
-          @keyframes bounceIn {
-            from { transform: scale(0) rotate(180deg); }
-            to { transform: scale(1) rotate(0deg); }
-          }
-        
-          @keyframes ripple {
-            0%, 100% { transform: scale(1); opacity: 0.4; }
-            50% { transform: scale(1.15); opacity: 0.7; }
-          }
-        
-          .icon {
-            color: white;
-            font-size: 38px;
-            font-weight: bold;
-            opacity: 0;
-            animation: iconReveal 0.6s ease 1s both;
-          }
-        
-          @keyframes iconReveal {
-            from { opacity: 0; transform: scale(0.5) rotate(-45deg); }
-            to { opacity: 1; transform: scale(1) rotate(0deg); }
-          }
-        
-          h1 {
-            color: #1a202c;
-            font-size: 32px;
-            font-weight: 800;
-            margin-bottom: 15px;
-            animation: slideUp 0.6s ease 0.4s both;
-          }
-        
-          p {
-            color: #4a5568;
-            font-size: 17px;
-            margin-bottom: 20px;
-            line-height: 1.6;
-            animation: slideUp 0.6s ease 0.6s both;
-          }
-        
-          @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-        
-          .button-row {
-            display: flex;
-            gap: 20px;
-            margin: 35px 0;
-            animation: slideUp 0.6s ease 0.8s both;
-          }
-        
-          .btn {
-            flex: 1;
-            padding: 16px 20px;
-            border: none;
-            border-radius: 16px;
-            cursor: pointer;
-            font-weight: 700;
-            font-size: 15px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-        
-          .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-            transition: left 0.5s;
-          }
-        
-          .btn:hover::before {
-            left: 100%;
-          }
-        
-          .btn:active {
-            transform: scale(0.98);
-          }
-        
-          .btn-blue {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
-          }
-        
-          .btn-blue:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 25px rgba(102, 126, 234, 0.45);
-          }
-        
-          .footer {
-            margin-top: 35px;
-            color: #718096;
-            font-size: 14px;
-            animation: slideUp 0.6s ease 1s both;
-          }
-        
-          .footer strong {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-          }
-        
-          @media (max-width: 480px) {
-            .container {
-              margin: 20px;
-              padding: 32px 24px;
-            }
-            
-            .button-row {
-              flex-direction: column;
-              gap: 16px;
-            }
-            
-            h1 {
-              font-size: 26px;
-            }
-          }
-        
-          .exit-message {
-            display: none;
-            text-align: center;
-            padding: 60px 40px;
-            font-family: sans-serif;
-            color: white;
-            animation: fadeIn 0.5s ease;
-          }
-        
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-        
-          .exit-message h2 {
-            font-size: 28px;
-            margin-bottom: 15px;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-          }
-        
-          .exit-message p {
-            font-size: 18px;
-            opacity: 0.9;
-          }
-        </style>
-        </head>
-        <body>
-        <div class="container">
-          <div class="circle">
-            <div class="icon">✓</div>
-          </div>
-          <h1>Response Received</h1>
-          <p>We've noted your decision not to proceed with this application.</p>
-          <div class="button-row">
-            <button class="btn btn-blue" onclick="exitPage()">
-              Exit
-            </button>
-          </div>
-          <div class="footer">
-            Powered by <strong>IntelliJob</strong> from Suntrenia
-          </div>
-        </div>
-        
-        <div class="exit-message">
-          <h2>You can safely close this tab now</h2>
-          <p>Thank you for using IntelliJob!</p>
-        </div>
-        
-        <script>
-          console.log('Response processed successfully');
-          
-          function exitPage() {
-            document.querySelector('.container').style.display = 'none';
-            document.querySelector('.exit-message').style.display = 'block';
-            
-            setTimeout(() => {
-              try {
-                window.close();
-              } catch (e) {
-                console.log('Cannot close window');
-              }
-              
-              setTimeout(() => {
-                try {
-                  if (window.history.length > 1) {
-                    window.history.back();
-                  }
-                } catch (e) {
-                  console.log('Cannot go back');
-                }
-              }, 500);
-            }, 1000);
-          }
-          
-          document.querySelectorAll('.btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-              this.style.transform = 'scale(0.98) translateY(-3px)';
-              setTimeout(() => {
-                this.style.transform = '';
-              }, 150);
-            });
-          });
-        </script>
-        </body>
+        // Negative response
+        console.log('❌ User declined - showing declined page');
+        res.send(getDeclinedHTML());
+      }
+      
+    } catch (err) {
+      console.error('❌ ERROR in handle-response:', err);
+      console.error('❌ Error stack:', err.stack);
+      
+      if (mongoClient) {
+        await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+      }
+      
+      res.status(500).send(
+        `<html>
+          <body>
+            <h1>Server Error</h1>
+            <p>Please try again later. If the problem persists, contact support.</p>
+            <p><small>Error: ${err.message}</small></p>
+          </body>
         </html>`
       );
     }
+  });
+  function getDeclinedHTML() {
+    return `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Response Received</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     
-  } catch (err) {
-    console.error('❌ ERROR in handle-response:', err);
-    console.error('Stack trace:', err.stack);
-    
-    if (mongoClient) {
-      await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background-size: 300% 300%;
+      animation: gradientShift 6s ease infinite;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     
-    res.status(500).send(
-      `<html>
-        <body>
-          <h1>Server Error</h1>
-          <p>Please try again later. If the problem persists, contact support.</p>
-          <p><small>Error: ${err.message}</small></p>
-        </body>
-      </html>`
-    );
-  }
-});
-
-// Enhanced helper function
-async function checkForResponsesImmediately(userId, emailId, jobId) {
-  // Trim parameters to ensure consistency
-  const trimmedUserId = (userId || '').trim();
-  const trimmedEmailId = (emailId || '').trim();
-  const trimmedJobId = (jobId || '').trim();
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    
+    .container {
+      max-width: 500px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      padding: 40px;
+      border-radius: 24px;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+      text-align: center;
+      animation: slideUp 0.6s ease-out;
+    }
+    
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .circle {
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);
+      border-radius: 50%;
+      margin: 0 auto 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 15px 35px rgba(255, 94, 98, 0.3);
+      animation: scaleIn 0.5s ease;
+    }
+    
+    @keyframes scaleIn {
+      from { transform: scale(0); }
+      to { transform: scale(1); }
+    }
+    
+    .icon {
+      color: white;
+      font-size: 38px;
+      font-weight: bold;
+    }
+    
+    h1 {
+      color: #1a202c;
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 15px;
+    }
+    
+    p {
+      color: #4a5568;
+      font-size: 17px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px 40px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 15px;
+      transition: transform 0.2s;
+      margin-top: 20px;
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+    
+    .footer {
+      margin-top: 35px;
+      color: #718096;
+      font-size: 14px;
+    }
+    
+    .footer strong {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+  </style>
+  </head>
+  <body>
+  <div class="container">
+    <div class="circle">
+      <div class="icon">✓</div>
+    </div>
+    <h1>Response Received</h1>
+    <p>We've noted your decision not to proceed with this application.</p>
+    <button class="btn" onclick="closeWindow()">Close Window</button>
+    <div class="footer">
+      Powered by <strong>IntelliJob</strong> from Suntrenia
+    </div>
+  </div>
   
-  console.log(`🔍 IMMEDIATE CHECK: '${trimmedUserId}', '${trimmedEmailId}', '${trimmedJobId}'`);
-
-  try {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
-
-    const db = client.db('olukayode_sage');
-    const collection = db.collection('user_application_response');
-
-    console.log('🔎 Looking for button response in DB...');
-    const buttonResponseRecord = await collection.findOne({
-      userId: trimmedUserId,
-      jobId: trimmedJobId,
-      emailId: trimmedEmailId
-    });
-
-    if (buttonResponseRecord && buttonResponseRecord.response) {
-      console.log("✅ Button response found:", buttonResponseRecord.response);
-      const userResponse = buttonResponseRecord.response.toLowerCase();
-
-      const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-      const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
-
-      if (isPositive) {
-        console.log("✅ Positive response detected - proceeding with application");
-        await db.collection('applications').updateOne(
-          { userId: trimmedUserId, jobId: trimmedJobId },
-          { $set: { status: 'approved', respondedAt: new Date() } }
-        );
-        return { success: true, action: 'approved' };
-      } else {
-        console.log("❌ Negative response detected - stopping application");
-        await db.collection('applications').updateOne(
-          { userId: trimmedUserId, jobId: trimmedJobId },
-          { $set: { status: 'rejected', respondedAt: new Date() } }
-        );
-        return { success: true, action: 'rejected' };
+  <script>
+    console.log('Response processed successfully');
+    
+    function closeWindow() {
+      try {
+        window.close();
+      } catch (e) {
+        console.log('Cannot close window');
       }
-    } else {
-      console.log("ℹ️ No button response found in DB");
-      return { success: true, action: 'no_response_found' };
+      
+      setTimeout(() => {
+        try {
+          if (window.history.length > 1) {
+            window.history.back();
+          }
+        } catch (e) {
+          console.log('Cannot go back');
+        }
+      }, 500);
     }
-
-  } catch (error) {
-    console.error('❌ Error in immediate check:', error);
-    throw error;
+  </script>
+  </body>
+  </html>`;
   }
-}
+  function getAlreadyAuthorizedHTML(userId, companyName, jobTitle) {
+    return `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Processing Application</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background-size: 300% 300%;
+      animation: gradientShift 6s ease infinite;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    
+    .container {
+      max-width: 550px;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(30px);
+      padding: 50px 40px;
+      border-radius: 28px;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
+      text-align: center;
+      animation: slideUp 0.6s ease-out;
+    }
+    
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .icon-wrapper {
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
+      border-radius: 50%;
+      margin: 0 auto 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: scaleIn 0.5s ease 0.3s both;
+    }
+    
+    @keyframes scaleIn {
+      from { transform: scale(0); }
+      to { transform: scale(1); }
+    }
+    
+    .icon-wrapper svg {
+      width: 50px;
+      height: 50px;
+      stroke: white;
+      fill: none;
+      stroke-width: 3;
+      animation: drawCheck 0.5s 0.8s ease forwards;
+      stroke-dasharray: 100;
+      stroke-dashoffset: 100;
+    }
+    
+    @keyframes drawCheck {
+      to { stroke-dashoffset: 0; }
+    }
+    
+    h1 {
+      color: #1a202c;
+      font-size: 32px;
+      font-weight: 900;
+      margin-bottom: 15px;
+      animation: fadeIn 0.6s ease 0.4s both;
+    }
+    
+    p {
+      color: #4a5568;
+      font-size: 17px;
+      line-height: 1.7;
+      margin-bottom: 15px;
+      animation: fadeIn 0.6s ease 0.6s both;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .job-details {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+      border-left: 4px solid #667eea;
+      padding: 20px;
+      border-radius: 12px;
+      margin: 25px 0;
+      text-align: left;
+      animation: fadeIn 0.6s ease 0.8s both;
+    }
+    
+    .job-details h3 {
+      color: #1a202c;
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    .job-details p {
+      color: #4a5568;
+      font-size: 15px;
+      margin: 0;
+    }
+    
+    .auto-mode-tip {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 25px;
+      text-align: left;
+      animation: fadeIn 0.6s ease 1s both;
+    }
+    
+    .auto-mode-tip h3 {
+      color: #856404;
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .auto-mode-tip p {
+      color: #856404;
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0;
+    }
+    
+    .auto-mode-tip strong {
+      color: #664d03;
+    }
+    
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px 40px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      margin-top: 30px;
+      transition: transform 0.2s;
+      animation: fadeIn 0.6s ease 1.2s both;
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+    
+    .footer {
+      margin-top: 30px;
+      color: #718096;
+      font-size: 14px;
+      animation: fadeIn 0.6s ease 1.4s both;
+    }
+    
+    .footer strong {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+  </style>
+  </head>
+  <body>
+  <div class="container">
+    <div class="icon-wrapper">
+      <svg viewBox="0 0 52 52">
+        <polyline points="14,27 22,35 38,19" />
+      </svg>
+    </div>
+    
+    <h1>We're On It! 🚀</h1>
+    
+    <p>Great! We're now proceeding with your application.</p>
+    
+    <div class="job-details">
+      <h3>📋 Application Details</h3>
+      <p><strong>Company:</strong> ${companyName}</p>
+      <p><strong>Position:</strong> ${jobTitle}</p>
+    </div>
+    
+    <p>Your application will be submitted shortly using your authorized email.</p>
+    
+    <div class="auto-mode-tip">
+      <h3>💡 Pro Tip: Enable Auto Mode</h3>
+      <p>Want to skip this step next time? Go to your <strong>Dashboard → Settings</strong> and enable <strong>Auto Mode</strong>. We'll automatically process applications without asking for confirmation!</p>
+    </div>
+    
+    <button class="btn" onclick="closeWindow()">Close Window</button>
+    
+    <div class="footer">
+      Powered by <strong>IntelliJob</strong> from Suntrenia
+    </div>
+  </div>
+  
+  <script>
+    console.log('✅ Already authorized - proceeding with application');
+    
+    function closeWindow() {
+      try {
+        window.close();
+      } catch (e) {
+        console.log('Cannot close window');
+      }
+      
+      setTimeout(() => {
+        try {
+          if (window.history.length > 1) {
+            window.history.back();
+          }
+        } catch (e) {
+          console.log('Cannot go back');
+        }
+      }, 500);
+    }
+    
+    // Auto-close after 10 seconds
+    setTimeout(() => {
+      console.log('Auto-closing window...');
+      closeWindow();
+    }, 10000);
+  </script>
+  </body>
+  </html>`;
+  }
 
 
 
@@ -1532,27 +1565,7 @@ function getSuccessHTML() {
   }
   
 
-// Route to initiate Google OAuth
-// app.get('/auth/google', (req, res) => {
-//     const { userId, jobId, emailId, responseId } = req.query;
-    
-//     // Store these in session or pass as state parameter
-//     const state = Buffer.from(JSON.stringify({ userId, jobId, emailId, responseId })).toString('base64');
-    
-//     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-//       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
-//       `redirect_uri=${encodeURIComponent(process.env.GOOGLE_REDIRECT_URI)}&` +
-//       `response_type=code&` +
-//       `scope=${encodeURIComponent('https://www.googleapis.com/auth/gmail.send')}&` +
-//       `access_type=offline&` +
-//       `prompt=consent&` +
-//       `state=${state}`;
-    
-//     res.redirect(googleAuthUrl);
-//   });
-  // Route to initiate Google OAuth
-// Route to initiate Google OAuth - ENHANCED VERSION
-// REPLACE your existing /auth/google route with this enhanced version:
+
 
 app.get('/auth/google', (req, res) => {
     console.log('\n🔵 ============ /auth/google ROUTE HIT ============');
@@ -1844,17 +1857,39 @@ app.get('/auth/fallback', (req, res) => {
       </html>
     `);
   });
-  // OAuth callback route
-  app.get('/auth/google/callback', async (req, res) => {
-    const { code, state } = req.query;
+
+  // OAuth callback route - SURGICAL UPDATE
+app.get('/auth/google/callback', async (req, res) => {
+    console.log('\n🔵 ============ OAUTH CALLBACK HIT ============');
+    const { code, state, error } = req.query;
     
-    if (!code) {
-      return res.status(400).send('Authorization failed');
+    if (error) {
+      console.error('❌ OAuth error:', error);
+      return res.status(400).send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Authorization Failed</title></head>
+        <body style="font-family: Arial; padding: 40px; text-align: center;">
+          <h1>❌ Authorization Failed</h1>
+          <p>Error: ${error}</p>
+          <button onclick="window.close()">Close Window</button>
+        </body>
+        </html>
+      `);
     }
     
+    if (!code) {
+      return res.status(400).send('Authorization failed - no code received');
+    }
+    
+    let mongoClient;
+    
     try {
-      // Decode state to get user info
-      const { userId, jobId, emailId, responseId } = JSON.parse(Buffer.from(state, 'base64').toString());
+      // Decode state
+      const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+      const { userId, jobId, emailId, responseId } = stateData;
+      
+      console.log('🔵 User:', userId);
       
       // Exchange code for tokens
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -1869,10 +1904,20 @@ app.get('/auth/fallback', (req, res) => {
         })
       });
       
+      if (!tokenResponse.ok) {
+        throw new Error('Token exchange failed');
+      }
+      
       const tokens = await tokenResponse.json();
       
-      // Store tokens in database
-      const mongoClient = new MongoClient(process.env.MONGODB_URI);
+      // Get user's email
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${tokens.access_token}` }
+      });
+      const userInfo = await userInfoResponse.json();
+      
+      // 🔥 STORE AUTHORIZATION IN DATABASE
+      mongoClient = new MongoClient(process.env.MONGODB_URI);
       await mongoClient.connect();
       const db = mongoClient.db('olukayode_sage');
       
@@ -1883,8 +1928,11 @@ app.get('/auth/fallback', (req, res) => {
             accessToken: tokens.access_token,
             refreshToken: tokens.refresh_token,
             expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+            userEmail: userInfo.email,
             updatedAt: new Date(),
-            usePersonalEmail: true
+            usePersonalEmail: true,
+            authorizedAt: new Date(),
+            isAuthorized: true  // 👈 EXPLICIT FLAG
           } 
         },
         { upsert: true }
@@ -1892,31 +1940,64 @@ app.get('/auth/fallback', (req, res) => {
       
       await mongoClient.close();
       
-      // Redirect to success page
+      console.log('✅ Authorization stored in database');
+      
+      // 🔥 EMIT WEBSOCKET EVENT: USER AUTHORIZED
+      const wsPayload = {
+        type: 'user_authorized',
+        userId,
+        jobId,
+        emailId,
+        responseId,
+        message: 'User has been authorized successfully',
+        timestamp: new Date().toISOString()
+      };
+      
+      wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(wsPayload));
+        }
+      });
+      
+      console.log('📢 WebSocket notification sent: USER AUTHORIZED');
+      
+      // Show success page
       res.send(getSuccessHTML());
       
     } catch (error) {
-      console.error('OAuth error:', error);
+      console.error('❌ OAuth callback error:', error);
+      
+      if (mongoClient) {
+        await mongoClient.close();
+      }
+      
       res.status(500).send('Authorization failed. Please try again.');
     }
   });
-  
-  // Route for using company email
-  app.get('/auth/use-company-email', async (req, res) => {
+  // OAuth callback route
+
+  // Route for using company email - SURGICAL UPDATE
+app.get('/auth/use-company-email', async (req, res) => {
     const { userId, jobId, emailId, responseId } = req.query;
     
+    console.log('\n🏢 Using company email for user:', userId);
+    
+    let mongoClient;
+    
     try {
-      const mongoClient = new MongoClient(process.env.MONGODB_URI);
+      mongoClient = new MongoClient(process.env.MONGODB_URI);
       await mongoClient.connect();
       const db = mongoClient.db('olukayode_sage');
       
-      // Mark user as using company email
+      // 🔥 STORE AUTHORIZATION (COMPANY EMAIL MODE)
       await db.collection('user_gmail_tokens').updateOne(
         { userId },
         { 
           $set: { 
             usePersonalEmail: false,
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            authorizedAt: new Date(),
+            isAuthorized: true  // 👈 EXPLICIT FLAG
           } 
         },
         { upsert: true }
@@ -1924,14 +2005,42 @@ app.get('/auth/fallback', (req, res) => {
       
       await mongoClient.close();
       
-      // Redirect to success page
+      console.log('✅ Company email authorization stored');
+      
+      // 🔥 EMIT WEBSOCKET EVENT: USER AUTHORIZED
+      const wsPayload = {
+        type: 'user_authorized',
+        userId,
+        jobId,
+        emailId,
+        responseId,
+        message: 'User has been authorized (company email)',
+        timestamp: new Date().toISOString()
+      };
+      
+      wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(wsPayload));
+        }
+      });
+      
+      console.log('📢 WebSocket notification sent: USER AUTHORIZED');
+      
+      // Show success page
       res.send(getSuccessHTML());
       
     } catch (error) {
-      console.error('Error setting company email:', error);
+      console.error('❌ Error setting company email:', error);
+      
+      if (mongoClient) {
+        await mongoClient.close();
+      }
+      
       res.status(500).send('An error occurred. Please try again.');
     }
   });
+  // Route for using company email
+
 
 // Server startup with comprehensive logging
 server.listen(PORT, async () => {
