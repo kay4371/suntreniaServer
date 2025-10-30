@@ -135,6 +135,7 @@ app.get('/test-oauth', (req, res) => {
 
 // Add this route right after /test-oauth
 // Add these routes after your existing /test-oauth route
+// ADD THESE NEW ROUTES:
 app.get('/test-oauth-flow', (req, res) => {
     res.send(`
       <!DOCTYPE html>
@@ -183,6 +184,27 @@ app.get('/test-oauth-flow', (req, res) => {
       </body>
       </html>
     `);
+  });
+  
+  app.get('/debug-oauth', (req, res) => {
+    const debugInfo = {
+      server: {
+        baseUrl: 'https://api.suntrenia.com',
+        port: PORT,
+        environment: process.env.NODE_ENV || 'development'
+      },
+      oauth: {
+        clientId: process.env.GOOGLE_CLIENT_ID ? 'Set' : 'MISSING',
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'MISSING',
+        redirectUri: process.env.GOOGLE_REDIRECT_URI || 'MISSING',
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json({
+      message: 'OAuth Debug Information',
+      ...debugInfo
+    });
   });
   
   app.get('/debug-oauth', (req, res) => {
