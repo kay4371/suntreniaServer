@@ -131,6 +131,118 @@ app.get('/test-oauth', (req, res) => {
       timestamp: new Date().toISOString()
     });
   });
+
+
+// Add this route right after /test-oauth
+// Add these routes after your existing /test-oauth route
+app.get('/test-oauth-flow', (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Test OAuth Flow</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; }
+          .btn { 
+            background: #667eea; 
+            color: white; 
+            padding: 15px 30px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+          }
+          .debug { background: #f0f0f0; padding: 20px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <h1>Test OAuth Flow</h1>
+        
+        <div class="debug">
+          <h3>Debug Information:</h3>
+          <p><strong>Server:</strong> https://api.suntrenia.com</p>
+          <p><strong>Google Client ID:</strong> ${process.env.GOOGLE_CLIENT_ID ? 'Set' : 'MISSING'}</p>
+          <p><strong>Redirect URI:</strong> ${process.env.GOOGLE_REDIRECT_URI || 'MISSING'}</p>
+        </div>
+        
+        <button class="btn" onclick="testOAuth()">Test Google OAuth</button>
+        <button class="btn" onclick="testCompanyEmail()">Test Company Email</button>
+        
+        <script>
+          function testOAuth() {
+            console.log('Testing OAuth...');
+            window.location.href = '/auth/google?userId=test123&jobId=job456&emailId=email789&responseId=response123';
+          }
+          
+          function testCompanyEmail() {
+            console.log('Testing Company Email...');
+            window.location.href = '/auth/use-company-email?userId=test123&jobId=job456&emailId=email789&responseId=response123';
+          }
+        </script>
+      </body>
+      </html>
+    `);
+  });
+  
+  app.get('/debug-oauth', (req, res) => {
+    const debugInfo = {
+      server: {
+        baseUrl: 'https://api.suntrenia.com',
+        port: PORT,
+        environment: process.env.NODE_ENV || 'development'
+      },
+      oauth: {
+        clientId: process.env.GOOGLE_CLIENT_ID ? `Set (first 10 chars: ${process.env.GOOGLE_CLIENT_ID.substring(0, 10)}...)` : 'MISSING',
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'MISSING',
+        redirectUri: process.env.GOOGLE_REDIRECT_URI || 'MISSING',
+        redirectUriMatches: process.env.GOOGLE_REDIRECT_URI === 'https://api.suntrenia.com/auth/google/callback'
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json({
+      message: 'OAuth Debug Information',
+      ...debugInfo
+    });
+  });
+  
+  app.get('/env-check', (req, res) => {
+    const envVars = {
+      EMAIL_USER: process.env.EMAIL_USER ? 'Set' : 'Missing',
+      MONGODB_URI: process.env.MONGODB_URI ? 'Set' : 'Missing',
+      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? `Set (length: ${process.env.GOOGLE_CLIENT_ID.length})` : 'Missing',
+      GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'Missing',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    };
+    
+    res.json({
+      message: 'Environment Variables Check',
+      environment: envVars,
+      timestamp: new Date().toISOString()
+    });
+  });
+// Add this route to check environment variables
+app.get('/env-check', (req, res) => {
+    const envVars = {
+      EMAIL_USER: process.env.EMAIL_USER ? 'Set' : 'Missing',
+      MONGODB_URI: process.env.MONGODB_URI ? 'Set' : 'Missing',
+      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? `Set (length: ${process.env.GOOGLE_CLIENT_ID.length})` : 'Missing',
+      GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'Missing',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    };
+    
+    res.json({
+      message: 'Environment Variables Check',
+      environment: envVars,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+
+
+
+
 // NEW ENDPOINT: Get all user responses
 app.get('/api/user-responses', async (req, res) => {
   const { userId } = req.query;
@@ -1164,42 +1276,52 @@ function getAuthorizationHTML(userId, jobId, emailId, responseId) {
     const jobId = '${jobId}';
     const emailId = '${emailId}';
     const responseId = '${responseId}';
-  
+
     function authorizeGmail() {
-        console.log('🔵 authorizeGmail() function called');
-        console.log('🔵 UserId:', userId);
-        console.log('🔵 JobId:', jobId);
-        console.log('🔵 EmailId:', emailId);
-        console.log('🔵 ResponseId:', responseId);
-      document.getElementById('loading').classList.add('active');
-      const params = new URLSearchParams({ userId, jobId, emailId, responseId });
-
-      const redirectUrl = '/auth/google?' + params.toString();
-  
-      console.log('🔵 Redirect URL:', redirectUrl);
-      console.log('🔵 Google Client ID available:', !!process.env.GOOGLE_CLIENT_ID);
-      console.log('🔵 Google Redirect URI available:', !!process.env.GOOGLE_REDIRECT_URI);
-
-      window.location.href = '/auth/google?' + params.toString();
-
-      // Check if we have the basic OAuth config
-      if (!process.env.GOOGLE_CLIENT_ID) {
-        console.log('❌ OAuth not configured, using fallback');
-        // Use fallback route
-        const params = new URLSearchParams({ userId, jobId, emailId, responseId });
-        window.location.href = '/auth/fallback?' + params.toString();
-        return;
+      console.log('🔵 authorizeGmail() function called');
+      
+      // Show loading immediately
+      const loading = document.getElementById('loading');
+      if (loading) {
+        loading.classList.add('active');
       }
-
+      
+      // Build the redirect URL
+      const params = new URLSearchParams({ 
+        userId: userId || '', 
+        jobId: jobId || '', 
+        emailId: emailId || '', 
+        responseId: responseId || '' 
+      });
+      
+      const redirectUrl = '/auth/google?' + params.toString();
+      console.log('🔵 Built redirect URL:', redirectUrl);
+      
+      // Add a small delay to ensure loading shows
+      setTimeout(() => {
+        console.log('🔵 Redirecting to:', redirectUrl);
+        window.location.href = redirectUrl;
+      }, 100);
     }
-  
+
     function useCompanyEmail() {
       if (confirm('Are you sure you want to use our company email? Using your personal Gmail is recommended for better response rates.')) {
-        document.getElementById('loading').classList.add('active');
+        const loading = document.getElementById('loading');
+        if (loading) {
+          loading.classList.add('active');
+        }
+        
         const params = new URLSearchParams({ userId, jobId, emailId, responseId });
-        window.location.href = '/auth/use-company-email?' + params.toString();
+        const redirectUrl = '/auth/use-company-email?' + params.toString();
+        
+        setTimeout(() => {
+          window.location.href = redirectUrl;
+        }, 100);
       }
     }
+
+    // Debug info
+    console.log('🔧 Authorization page loaded with:', { userId, jobId, emailId, responseId });
   </script>
   </body>
   </html>`;
