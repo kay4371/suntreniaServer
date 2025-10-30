@@ -97,7 +97,27 @@ async function testImapConnection() {
 
 // Middleware
 app.use(cors());
-app.use(helmet());
+// NEW (allows inline scripts):
+// app.use(helmet({
+//     contentSecurityPolicy: {
+//       directives: {
+//         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+//         "script-src": ["'self'", "'unsafe-inline'"],
+//         "script-src-attr": ["'unsafe-inline'"],
+//       },
+//     },
+//   }));
+
+// Better approach - disable CSP for HTML responses only
+app.use((req, res, next) => {
+    // Disable CSP for HTML responses
+    if (req.path.includes('/handle-response') || 
+        req.path.includes('/test-oauth-flow') || 
+        req.path.includes('/auth/')) {
+      return next();
+    }
+    helmet()(req, res, next);
+  });
 app.use(express.json());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
