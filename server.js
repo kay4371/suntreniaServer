@@ -1,3 +1,6 @@
+
+
+
 const WebSocket = require('ws');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
@@ -10,23 +13,25 @@ const { simpleParser } = require('mailparser');
 const nodemailer = require('nodemailer');
 const http = require('http');
 
-
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const clients = new Map(); // userId → ws
 
-// WebSocket connection handling
 wss.on('connection', (ws, req) => {
   console.log('🔌 WS client connected');
+
+  // Optionally get userId from query (?userId=123)
   const url = new URL(req.url, `http://${req.headers.host}`);
   const userId = url.searchParams.get('userId');
   if (userId) {
     clients.set(userId, ws);
     console.log(`🆔 Registered client for userId: ${userId}`);
   }
+
   ws.send(JSON.stringify({ message: 'Welcome!' }));
+
   ws.on('close', () => {
     if (userId) clients.delete(userId);
     console.log(`❌ Client disconnected${userId ? ` (${userId})` : ''}`);
@@ -43,685 +48,639 @@ app.use((req, res, next) => {
   next();
 });
 
-// Environment validation
-function validateEnvironment() {
-  const required = [
-    'MONGODB_URI',
-    'EMAIL_USER', 
-    'EMAIL_PASSWORD'
-  ];
-  
-  const missing = required.filter(key => !process.env[key]);
-  if (missing.length > 0) {
-    console.error('❌ Missing required environment variables:', missing);
-    process.exit(1);
+console.log("📧 Email User:", process.env.EMAIL_USER);
+console.log("📧 Password length:", process.env.EMAIL_PASSWORD?.length);
+
+// SMTP Configuration
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  secure: process.env.SMTP_SECURE === "true",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+});
+
+// Test SMTP connection on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ SMTP Connection Failed:', error);
+  } else {
+    console.log('✅ SMTP Server is ready to take messages');
+  }
+});
+
+// IMAP Configuration
+const imapConfig = {
+  imap: {
+    user: process.env.EMAIL_USER,
+    password: process.env.EMAIL_PASSWORD,
+    host: process.env.IMAP_HOST || "imap.gmail.com",
+    port: parseInt(process.env.IMAP_PORT) || 993,
+    tls: true,
+    tlsOptions: { rejectUnauthorized: false }
+  }
+};
+
+// Test IMAP connection function
+async function testImapConnection() {
+  try {
+    console.log('🔗 Testing IMAP connection...');
+    const connection = await imaps.connect(imapConfig);
+    console.log('✅ IMAP Connection successful');
+    await connection.end();
+    return true;
+  } catch (error) {
+    console.error('❌ IMAP Connection failed:', error.message);
+    return false;
   }
 }
 
-console.log("📧 Email User:", process.env.EMAIL_USER);
-console.log("📧 Password length:", process.env.EMAIL_PASSWORD?.length);
-// SMTP Configuration
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === "true",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  });
-  
-  // Test SMTP connection on startup
-  transporter.verify((error, success) => {
-    if (error) {
-      console.error('❌ SMTP Connection Failed:', error);
-    } else {
-      console.log('✅ SMTP Server is ready to take messages');
-    }
-  });
-  
-  // IMAP Configuration
-  const imapConfig = {
-    imap: {
-      user: process.env.EMAIL_USER,
-      password: process.env.EMAIL_PASSWORD,
-      host: process.env.IMAP_HOST || "imap.gmail.com",
-      port: parseInt(process.env.IMAP_PORT) || 993,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false }
-    }
+// Middleware
+app.use(cors());
+app.use(helmet());
+app.use(express.json());
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+
+// Test route with environment info
+app.get('/', (req, res) => {
+  const envInfo = {
+    email_user: process.env.EMAIL_USER ? 'Set' : 'Missing',
+    mongodb_uri: process.env.MONGODB_URI ? 'Set' : 'Missing',
+    node_env: process.env.NODE_ENV || 'development'
   };
-  
-  // Test IMAP connection function
-  async function testImapConnection() {
-    try {
-      console.log('🔗 Testing IMAP connection...');
-      const connection = await imaps.connect(imapConfig);
-      console.log('✅ IMAP Connection successful');
-      await connection.end();
-      return true;
-    } catch (error) {
-      console.error('❌ IMAP Connection failed:', error.message);
-      return false;
-    }
-  }
-  
-  // Database initialization
-  async function initializeDatabase() {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    try {
-      await client.connect();
-      const db = client.db('olukayode_sage');
-      
-      // Create indexes for better performance
-      await db.collection('user_application_response').createIndex({ userId: 1, timestamp: -1 });
-      await db.collection('user_application_response').createIndex({ emailId: 1 });
-      await db.collection('user_gmail_tokens').createIndex({ userId: 1 }, { unique: true });
-      await db.collection('applications').createIndex({ userId: 1, jobId: 1 });
-      await db.collection('jobs').createIndex({ _id: 1 });
-      
-      console.log('✅ Database indexes created');
-    } catch (error) {
-      console.error('❌ Database initialization failed:', error);
-    } finally {
-      await client.close();
-    }
-  }
-  
-  // Middleware
-  app.use(cors());
-  app.use(helmet());
-  app.use(express.json());
-  app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
-  /**
- * Check if user has authorized email sending
- */
-async function checkIfUserAuthorized(userId) {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    try {
-      await client.connect();
-      console.log(`🔍 Checking authorization for user: ${userId}`);
-      
-      const db = client.db('olukayode_sage');
-      const userAuth = await db.collection('user_gmail_tokens').findOne({ userId });
-  
-      if (!userAuth) {
-        console.log(`❌ No authorization record found for user ${userId}`);
-        return false;
-      }
-  
-      if (userAuth.usePersonalEmail === false) {
-        console.log(`✅ User ${userId} authorized — using company email`);
-        return true;
-      }
-  
-      if (userAuth.usePersonalEmail === true && userAuth.accessToken) {
-        console.log(`✅ User ${userId} authorized — using personal Gmail`);
-        return true;
-      }
-  
-      console.log(`⚠️ Incomplete authorization details for user ${userId}`);
-      return false;
-    } catch (error) {
-      console.error('❌ Error checking user authorization:', error);
-      return false;
-    } finally {
-      await client.close();
-    }
+  res.json({
+    message: '🟢 Backend is running',
+    environment: envInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// NEW ENDPOINT: Get all user responses
+app.get('/api/user-responses', async (req, res) => {
+  const { userId } = req.query;
+
+  console.log('📋 GET USER-RESPONSES CALLED:');
+  console.log('📋 Query parameters:', req.query);
+  console.log('📋 UserId received:', userId);
+
+  if (!userId) {
+    console.log('❌ Missing userId parameter');
+    return res.status(400).json({ error: 'userId is required' });
   }
-  
-  /**
-   * Process application after user response
-   */
-  async function checkForResponses(userId, emailId, jobId, responseType) {
-    console.log(`\n📧 PROCESSING APPLICATION`);
-    console.log(`👤 User: ${userId}`);
-    console.log(`📋 Job: ${jobId}`);
-    console.log(`✅ Response: ${responseType}`);
+
+  let mongoClient;
+
+  try {
+    console.log('🗄️ Connecting to MongoDB...');
+    mongoClient = new MongoClient(process.env.MONGODB_URI);
+    await mongoClient.connect();
+    console.log('✅ Connected to MongoDB');
+
+    const db = mongoClient.db('olukayode_sage');
+    const collection = db.collection('user_application_response');
+
+    // Get all responses for this user, sorted by timestamp (newest first)
+    console.log(`🔍 Retrieving responses for user: ${userId}`);
+    const userResponses = await collection.find({ userId }).sort({ timestamp: -1 }).toArray();
+
+    console.log(`✅ Found ${userResponses.length} responses for user ${userId}`);
+    console.log('📊 Responses found:', userResponses.map(r => ({
+      id: r._id,
+      response: r.response,
+      jobId: r.jobId,
+      timestamp: r.timestamp
+    })));
     
-    const client = new MongoClient(process.env.MONGODB_URI);
+    await mongoClient.close();
+
+    res.json({
+      success: true,
+      count: userResponses.length,
+      responses: userResponses,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ ERROR retrieving user responses:', error);
+    console.error('❌ Error stack:', error.stack);
     
-    try {
-      await client.connect();
-      const db = client.db('olukayode_sage');
-      
-      const updateResult = await db.collection('applications').updateOne(
-        { userId, jobId },
-        { 
-          $set: { 
-            status: responseType === 'proceed' ? 'processing' : 'declined',
-            processedAt: new Date(),
-            emailId: emailId
-          } 
-        },
-        { upsert: true }
-      );
-      
-      console.log(`✅ Application status updated`);
-      
-      if (responseType === 'proceed') {
-        const userAuth = await db.collection('user_gmail_tokens').findOne({ userId });
-        
-        if (userAuth?.usePersonalEmail && userAuth.accessToken) {
-          console.log('📧 Will send via user\'s personal Gmail');
-          await sendApplicationEmail(userId, jobId, emailId);
-        } else {
-          console.log('📧 Will send via company email');
-          await sendApplicationEmail(userId, jobId, emailId);
-        }
-      }
-      
-      return { success: true, action: responseType };
-    } catch (error) {
-      console.error('❌ Error in checkForResponses:', error);
-      throw error;
-    } finally {
-      await client.close();
+    if (mongoClient) {
+      await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
     }
+
+    res.status(500).json({ 
+      error: 'Failed to retrieve user responses',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
-  
-  /**
-   * Send application email
-   */
-  async function sendApplicationEmail(userId, jobId, emailId) {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    try {
-      await client.connect();
-      const db = client.db('olukayode_sage');
-      
-      // Get job details
-      const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
-      const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
-      
-      if (!job) {
-        console.log('⚠️ Job details not found, using default template');
+});
+
+// Enhanced checkForResponses with detailed logging
+app.get('/handle-response', async (req, res) => {
+  // Extract all parameters with default values and trim whitespace
+  const { 
+    response, 
+    emailId, 
+    jobId, 
+    userId, 
+    emailSubject = 'Not provided', 
+    companyName = 'Unknown Company', 
+    jobTitle = 'Unknown Position',
+    applicationStatus = 'pending',
+    emailDate = new Date().toISOString(),
+    emailFrom = 'Unknown Sender'
+  } = req.query;
+
+  // Trim all string parameters to remove whitespace
+  const trimmedUserId = (userId || '').trim();
+  const trimmedResponse = (response || '').trim();
+  const trimmedEmailId = (emailId || '').trim();
+  const trimmedJobId = (jobId || '').trim();
+  const trimmedEmailSubject = (emailSubject || '').trim();
+  const trimmedCompanyName = (companyName || '').trim();
+  const trimmedJobTitle = (jobTitle || '').trim();
+
+  console.log('\n🎯 HANDLE-RESPONSE CALLED:');
+  console.log('📩 Received parameters:', { 
+    response: `${response}`, 
+    emailId: `${emailId}`, 
+    jobId: `${jobId}`, 
+    userId: `${userId}`,
+    emailSubject: `${emailSubject}`,
+    companyName: `${companyName}`,
+    jobTitle: `${jobTitle}`
+  });
+  console.log('📩 Trimmed parameters:', { 
+    response: `${trimmedResponse}`, 
+    emailId: `${trimmedEmailId}`, 
+    jobId: `${trimmedJobId}`, 
+    userId: `${trimmedUserId}`,
+    emailSubject: `${trimmedEmailSubject}`,
+    companyName: `${trimmedCompanyName}`,
+    jobTitle: `${trimmedJobTitle}`
+  });
+
+  // Validate required parameters
+  if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
+    console.log('❌ Missing required parameters after trimming');
+    return res.status(400).send('Missing required parameters');
+  }
+
+  let mongoClient;
+
+  try {
+    console.log('🗄️ Connecting to MongoDB...');
+    mongoClient = new MongoClient(process.env.MONGODB_URI);
+    await mongoClient.connect();
+    console.log('✅ Connected to MongoDB');
+
+    const db = mongoClient.db('olukayode_sage');
+
+    // Store the response with ALL parameters and default values
+    console.log('💾 Storing response in database with all parameters...');
+    const responseData = {
+      userId: trimmedUserId,
+      response: trimmedResponse,
+      emailId: trimmedEmailId,
+      jobId: trimmedJobId,
+      emailSubject: trimmedEmailSubject,
+      companyName: trimmedCompanyName,
+      jobTitle: trimmedJobTitle,
+      applicationStatus: applicationStatus,
+      emailDate: emailDate,
+      emailFrom: emailFrom,
+      timestamp: new Date(),
+      processed: false
+    };
+
+    const insertResult = await db.collection('user_application_response').insertOne(responseData);
+
+    console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
+    console.log('📊 Stored data:', responseData);
+
+    // Immediate response check
+    console.log('🚀 Triggering immediate response check...');
+    const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
+    console.log('✅ Immediate check completed:', checkResult);
+
+    // Update the record as processed
+    await db.collection('user_application_response').updateOne(
+      { _id: insertResult.insertedId },
+      { $set: { processed: true, processedAt: new Date() } }
+    );
+    console.log('✅ Response marked as processed');
+
+    // 🔥 WEB SOCKET NOTIFICATION: Notify frontend that data is ready
+    const payload = {
+      type: trimmedResponse.toLowerCase(),   // 👈 dynamically set as 'proceed' or 'declined'
+      userId: trimmedUserId,
+      jobId: trimmedJobId,
+      emailId: trimmedEmailId,
+      responseId: insertResult.insertedId,
+      message: `User selected "${trimmedResponse}" for the application`,
+      timestamp: new Date().toISOString()
+    };
+
+    wss.clients.forEach(client => {
+      if (client.readyState === client.OPEN) {
+        client.send(JSON.stringify(payload));
       }
-      
-      if (!user) {
-        console.log('⚠️ User details not found');
-      }
-      
-      const emailContent = {
-        to: job?.companyEmail || 'hr@company.com',
-        subject: `Application for ${job?.title || 'Position'} - ${user?.name || 'Candidate'}`,
-        html: `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: #667eea; color: white; padding: 20px; text-align: center; }
-              .content { padding: 20px; background: #f9f9f9; }
-              .footer { padding: 20px; text-align: center; color: #666; font-size: 12px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>Job Application</h1>
-              </div>
-              <div class="content">
-                <p>Dear Hiring Manager,</p>
-                <p>I am writing to express my interest in the <strong>${job?.title || 'available position'}</strong> at <strong>${job?.company || 'your company'}</strong>.</p>
-                <p>I believe my skills and experience make me a strong candidate for this role.</p>
-                <p>Please find my application materials attached and feel free to contact me to schedule an interview.</p>
-                <p>Best regards,<br>${user?.name || 'Candidate'}</p>
-              </div>
-              <div class="footer">
-                <p>Sent via IntelliJob AI Assistant</p>
-              </div>
-            </div>
-          </body>
-          </html>
-        `
-      };
-      
-      // Get user's email authorization preference
-      const userAuth = await db.collection('user_gmail_tokens').findOne({ userId });
-      
-      let emailResult;
-      if (userAuth?.usePersonalEmail && userAuth.accessToken) {
-        emailResult = await sendViaGmailAPI(userAuth.accessToken, emailContent);
+    });
+    console.log('📢 WebSocket notification sent to all connected clients');
+
+    await mongoClient.close();
+    console.log('✅ MongoDB connection closed');
+
+    // Send success response
+    console.log('📤 Sending HTML response to client');
+    
+    // Determine if response is positive or negative
+    const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
+    const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
+    
+    // Send different HTML based on response type
+    if (isPositive) {
+        res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
       } else {
-        emailResult = await sendViaCompanyEmail(emailContent);
-      }
-      
-      console.log('✅ Application email sent successfully');
-      return emailResult;
-    } catch (error) {
-      console.error('❌ Error sending application email:', error);
-      throw error;
-    } finally {
-      await client.close();
-    }
-  }
-  
-  /**
-   * Send email via Gmail API
-   */
-  async function sendViaGmailAPI(accessToken, emailContent) {
-    const gmail = google.gmail({ version: 'v1', auth: accessToken });
-    
-    const emailLines = [
-      `To: ${emailContent.to}`,
-      'Content-Type: text/html; charset=utf-8',
-      'Content-Transfer-Encoding: 7bit',
-      `Subject: ${emailContent.subject}`,
-      '',
-      emailContent.html
-    ];
-    
-    const email = emailLines.join('\r\n').trim();
-    const encodedEmail = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
-    
-    try {
-      const result = await gmail.users.messages.send({
-        userId: 'me',
-        requestBody: {
-          raw: encodedEmail
-        }
-      });
-      return result;
-    } catch (error) {
-      console.error('Gmail API error:', error);
-      // Fallback to company email
-      return await sendViaCompanyEmail(emailContent);
-    }
-  }
-  
-  /**
-   * Send email via company SMTP
-   */
-  async function sendViaCompanyEmail(emailContent) {
-    try {
-      const result = await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: emailContent.to,
-        subject: emailContent.subject,
-        html: emailContent.html
-      });
-      return result;
-    } catch (error) {
-      console.error('Company email error:', error);
-      throw error;
-    }
-  }
-
-
-  /**
- * Immediate response check helper
- */
-async function checkForResponsesImmediately(userId, emailId, jobId) {
-    const trimmedUserId = (userId || '').trim();
-    const trimmedEmailId = (emailId || '').trim();
-    const trimmedJobId = (jobId || '').trim();
-    
-    console.log(`🔍 IMMEDIATE CHECK: '${trimmedUserId}', '${trimmedEmailId}', '${trimmedJobId}'`);
-  
-    const client = new MongoClient(process.env.MONGODB_URI);
-    try {
-      await client.connect();
-      const db = client.db('olukayode_sage');
-      
-      const buttonResponseRecord = await db.collection('user_application_response').findOne({
-        userId: trimmedUserId,
-        jobId: trimmedJobId,
-        emailId: trimmedEmailId
-      });
-  
-      if (buttonResponseRecord && buttonResponseRecord.response) {
-        const userResponse = buttonResponseRecord.response.toLowerCase();
-        const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-        const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
-  
-        if (isPositive) {
-          console.log("✅ Positive response - proceeding");
-          await db.collection('applications').updateOne(
-            { userId: trimmedUserId, jobId: trimmedJobId },
-            { $set: { status: 'approved', respondedAt: new Date() } }
-          );
-          return { success: true, action: 'approved' };
-        } else {
-          console.log("❌ Negative response - stopping");
-          await db.collection('applications').updateOne(
-            { userId: trimmedUserId, jobId: trimmedJobId },
-            { $set: { status: 'rejected', respondedAt: new Date() } }
-          );
-          return { success: true, action: 'rejected' };
-        }
-      }
-      
-      return { success: true, action: 'no_response_found' };
-    } catch (error) {
-      console.error('❌ Error in immediate check:', error);
-      throw error;
-    } finally {
-      await client.close();
-    }
-  }
-  
-  /**
-   * Token refresh function
-   */
-  async function refreshAccessToken(userId) {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    try {
-      await client.connect();
-      const db = client.db('olukayode_sage');
-      
-      const userAuth = await db.collection('user_gmail_tokens').findOne({ userId });
-      if (!userAuth?.refreshToken) {
-        throw new Error('No refresh token available');
-      }
-      
-      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: process.env.GOOGLE_CLIENT_ID,
-          client_secret: process.env.GOOGLE_CLIENT_SECRET,
-          refresh_token: userAuth.refreshToken,
-          grant_type: 'refresh_token'
-        })
-      });
-      
-      const tokens = await tokenResponse.json();
-      
-      if (tokens.error) {
-        throw new Error(`Token refresh failed: ${tokens.error}`);
-      }
-      
-      // Update tokens in database
-      await db.collection('user_gmail_tokens').updateOne(
-        { userId },
-        {
-          $set: {
-            accessToken: tokens.access_token,
-            expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-            updatedAt: new Date()
+      // Negative response HTML
+      res.send(
+        `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Response Received</title>
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
           }
-        }
+        
+          body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-size: 300% 300%;
+            animation: gradientShift 6s ease infinite;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+        
+          @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+          }
+        
+          .container {
+            max-width: 500px;
+            margin: 50px auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: containerFloat 0.8s ease-out;
+          }
+        
+          @keyframes containerFloat {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        
+          .circle {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);
+            border-radius: 50%;
+            margin: 0 auto 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 15px 35px rgba(255, 94, 98, 0.3);
+            position: relative;
+            animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s both;
+          }
+        
+          .circle::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            background: linear-gradient(135deg, #ff9966, #ff5e62);
+            border-radius: 50%;
+            z-index: -1;
+            opacity: 0.4;
+            animation: ripple 2.5s ease-in-out 1s infinite;
+          }
+        
+          @keyframes bounceIn {
+            from { transform: scale(0) rotate(180deg); }
+            to { transform: scale(1) rotate(0deg); }
+          }
+        
+          @keyframes ripple {
+            0%, 100% { transform: scale(1); opacity: 0.4; }
+            50% { transform: scale(1.15); opacity: 0.7; }
+          }
+        
+          .icon {
+            color: white;
+            font-size: 38px;
+            font-weight: bold;
+            opacity: 0;
+            animation: iconReveal 0.6s ease 1s both;
+          }
+        
+          @keyframes iconReveal {
+            from { opacity: 0; transform: scale(0.5) rotate(-45deg); }
+            to { opacity: 1; transform: scale(1) rotate(0deg); }
+          }
+        
+          h1 {
+            color: #1a202c;
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 15px;
+            animation: slideUp 0.6s ease 0.4s both;
+          }
+        
+          p {
+            color: #4a5568;
+            font-size: 17px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+            animation: slideUp 0.6s ease 0.6s both;
+          }
+        
+          @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        
+          .button-row {
+            display: flex;
+            gap: 20px;
+            margin: 35px 0;
+            animation: slideUp 0.6s ease 0.8s both;
+          }
+        
+          .btn {
+            flex: 1;
+            padding: 16px 20px;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 15px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+        
+          .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.5s;
+          }
+        
+          .btn:hover::before {
+            left: 100%;
+          }
+        
+          .btn:active {
+            transform: scale(0.98);
+          }
+        
+          .btn-blue {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
+          }
+        
+          .btn-blue:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 25px rgba(102, 126, 234, 0.45);
+          }
+        
+          .footer {
+            margin-top: 35px;
+            color: #718096;
+            font-size: 14px;
+            animation: slideUp 0.6s ease 1s both;
+          }
+        
+          .footer strong {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          }
+        
+          @media (max-width: 480px) {
+            .container {
+              margin: 20px;
+              padding: 32px 24px;
+            }
+            
+            .button-row {
+              flex-direction: column;
+              gap: 16px;
+            }
+            
+            h1 {
+              font-size: 26px;
+            }
+          }
+        
+          .exit-message {
+            display: none;
+            text-align: center;
+            padding: 60px 40px;
+            font-family: sans-serif;
+            color: white;
+            animation: fadeIn 0.5s ease;
+          }
+        
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        
+          .exit-message h2 {
+            font-size: 28px;
+            margin-bottom: 15px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+          }
+        
+          .exit-message p {
+            font-size: 18px;
+            opacity: 0.9;
+          }
+        </style>
+        </head>
+        <body>
+        <div class="container">
+          <div class="circle">
+            <div class="icon">✓</div>
+          </div>
+          <h1>Response Received</h1>
+          <p>We've noted your decision not to proceed with this application.</p>
+          <div class="button-row">
+            <button class="btn btn-blue" onclick="exitPage()">
+              Exit
+            </button>
+          </div>
+          <div class="footer">
+            Powered by <strong>IntelliJob</strong> from Suntrenia
+          </div>
+        </div>
+        
+        <div class="exit-message">
+          <h2>You can safely close this tab now</h2>
+          <p>Thank you for using IntelliJob!</p>
+        </div>
+        
+        <script>
+          console.log('Response processed successfully');
+          
+          function exitPage() {
+            document.querySelector('.container').style.display = 'none';
+            document.querySelector('.exit-message').style.display = 'block';
+            
+            setTimeout(() => {
+              try {
+                window.close();
+              } catch (e) {
+                console.log('Cannot close window');
+              }
+              
+              setTimeout(() => {
+                try {
+                  if (window.history.length > 1) {
+                    window.history.back();
+                  }
+                } catch (e) {
+                  console.log('Cannot go back');
+                }
+              }, 500);
+            }, 1000);
+          }
+          
+          document.querySelectorAll('.btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+              this.style.transform = 'scale(0.98) translateY(-3px)';
+              setTimeout(() => {
+                this.style.transform = '';
+              }, 150);
+            });
+          });
+        </script>
+        </body>
+        </html>`
       );
-      
-      return tokens.access_token;
-    } finally {
-      await client.close();
     }
+    
+  } catch (err) {
+    console.error('❌ ERROR in handle-response:', err);
+    console.error('Stack trace:', err.stack);
+    
+    if (mongoClient) {
+      await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+    }
+    
+    res.status(500).send(
+      `<html>
+        <body>
+          <h1>Server Error</h1>
+          <p>Please try again later. If the problem persists, contact support.</p>
+          <p><small>Error: ${err.message}</small></p>
+        </body>
+      </html>`
+    );
   }
+});
+
+// Enhanced helper function
+async function checkForResponsesImmediately(userId, emailId, jobId) {
+  // Trim parameters to ensure consistency
+  const trimmedUserId = (userId || '').trim();
+  const trimmedEmailId = (emailId || '').trim();
+  const trimmedJobId = (jobId || '').trim();
+  
+  console.log(`🔍 IMMEDIATE CHECK: '${trimmedUserId}', '${trimmedEmailId}', '${trimmedJobId}'`);
+
+  try {
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+
+    const db = client.db('olukayode_sage');
+    const collection = db.collection('user_application_response');
+
+    console.log('🔎 Looking for button response in DB...');
+    const buttonResponseRecord = await collection.findOne({
+      userId: trimmedUserId,
+      jobId: trimmedJobId,
+      emailId: trimmedEmailId
+    });
+
+    if (buttonResponseRecord && buttonResponseRecord.response) {
+      console.log("✅ Button response found:", buttonResponseRecord.response);
+      const userResponse = buttonResponseRecord.response.toLowerCase();
+
+      const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
+      const isPositive = positiveKeywords.some(keyword => userResponse.includes(keyword));
+
+      if (isPositive) {
+        console.log("✅ Positive response detected - proceeding with application");
+        await db.collection('applications').updateOne(
+          { userId: trimmedUserId, jobId: trimmedJobId },
+          { $set: { status: 'approved', respondedAt: new Date() } }
+        );
+        return { success: true, action: 'approved' };
+      } else {
+        console.log("❌ Negative response detected - stopping application");
+        await db.collection('applications').updateOne(
+          { userId: trimmedUserId, jobId: trimmedJobId },
+          { $set: { status: 'rejected', respondedAt: new Date() } }
+        );
+        return { success: true, action: 'rejected' };
+      }
+    } else {
+      console.log("ℹ️ No button response found in DB");
+      return { success: true, action: 'no_response_found' };
+    }
+
+  } catch (error) {
+    console.error('❌ Error in immediate check:', error);
+    throw error;
+  }
+}
 
 
-  // Success page for positive response
-function getSuccessHTMLPositive() {
-    return `<!DOCTYPE html>
-  <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Success - IntelliJob</title>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-  
-      body {
-        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 100vh;
-        margin: 0;
-        padding: 20px;
-      }
-  
-      .container {
-        background: white;
-        padding: 50px 40px;
-        border-radius: 24px;
-        text-align: center;
-        max-width: 480px;
-        width: 100%;
-        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-        animation: slideIn 0.6s ease-out;
-      }
-  
-      @keyframes slideIn {
-        from { opacity: 0; transform: translateY(30px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-  
-      .checkmark {
-        width: 100px;
-        height: 100px;
-        background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
-        border-radius: 50%;
-        margin: 0 auto 30px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        animation: scaleIn 0.5s ease;
-      }
-  
-      @keyframes scaleIn {
-        from { transform: scale(0); }
-        to { transform: scale(1); }
-      }
-  
-      .checkmark svg {
-        width: 50px;
-        height: 50px;
-        stroke: white;
-        stroke-width: 3;
-        fill: none;
-        animation: drawCheck 0.5s 0.3s ease forwards;
-        stroke-dasharray: 100;
-        stroke-dashoffset: 100;
-      }
-  
-      @keyframes drawCheck {
-        to { stroke-dashoffset: 0; }
-      }
-  
-      h1 {
-        color: #1a202c;
-        font-size: 32px;
-        font-weight: 800;
-        margin-bottom: 15px;
-      }
-  
-      p {
-        color: #4a5568;
-        font-size: 17px;
-        line-height: 1.6;
-        margin-bottom: 30px;
-      }
-  
-      .btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 16px 40px;
-        border: none;
-        border-radius: 12px;
-        font-weight: 700;
-        font-size: 15px;
-        cursor: pointer;
-        transition: transform 0.2s;
-      }
-  
-      .btn:hover {
-        transform: translateY(-2px);
-      }
-  
-      .footer {
-        margin-top: 30px;
-        color: #718096;
-        font-size: 14px;
-      }
-  
-      .footer strong {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="checkmark">
-        <svg viewBox="0 0 52 52">
-          <polyline points="14,27 22,35 38,19" />
-        </svg>
-      </div>
-      <h1>Success!</h1>
-      <p>Your application has been processed successfully and is being sent to the employer.</p>
-      <button class="btn" onclick="window.close()">Close Window</button>
-      <div class="footer">
-        Powered by <strong>IntelliJob</strong> from Suntrenia
-      </div>
-    </div>
-  </body>
-  </html>`;
-  }
-  
-  // Success page for negative response
-  function getSuccessHTMLNegative() {
-    return `<!DOCTYPE html>
-  <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Response Received - IntelliJob</title>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-  
-      body {
-        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 100vh;
-        margin: 0;
-        padding: 20px;
-      }
-  
-      .container {
-        background: white;
-        padding: 50px 40px;
-        border-radius: 24px;
-        text-align: center;
-        max-width: 480px;
-        width: 100%;
-        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-        animation: slideIn 0.6s ease-out;
-      }
-  
-      @keyframes slideIn {
-        from { opacity: 0; transform: translateY(30px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-  
-      .icon {
-        width: 100px;
-        height: 100px;
-        background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);
-        border-radius: 50%;
-        margin: 0 auto 30px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        animation: scaleIn 0.5s ease;
-      }
-  
-      @keyframes scaleIn {
-        from { transform: scale(0); }
-        to { transform: scale(1); }
-      }
-  
-      .icon-text {
-        color: white;
-        font-size: 40px;
-        font-weight: bold;
-      }
-  
-      h1 {
-        color: #1a202c;
-        font-size: 32px;
-        font-weight: 800;
-        margin-bottom: 15px;
-      }
-  
-      p {
-        color: #4a5568;
-        font-size: 17px;
-        line-height: 1.6;
-        margin-bottom: 30px;
-      }
-  
-      .btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 16px 40px;
-        border: none;
-        border-radius: 12px;
-        font-weight: 700;
-        font-size: 15px;
-        cursor: pointer;
-        transition: transform 0.2s;
-      }
-  
-      .btn:hover {
-        transform: translateY(-2px);
-      }
-  
-      .footer {
-        margin-top: 30px;
-        color: #718096;
-        font-size: 14px;
-      }
-  
-      .footer strong {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="icon">
-        <div class="icon-text">✓</div>
-      </div>
-      <h1>Response Received</h1>
-      <p>We've noted your decision not to proceed with this application.</p>
-      <button class="btn" onclick="window.close()">Close Window</button>
-      <div class="footer">
-        Powered by <strong>IntelliJob</strong> from Suntrenia
-      </div>
-    </div>
-  </body>
-  </html>`;
-  }
-  
-  // Authorization HTML
-  function getAuthorizationHTML(userId, jobId, emailId, responseId) {
+
+function getAuthorizationHTML(userId, jobId, emailId, responseId) {
     return `<!DOCTYPE html>
   <html lang="en">
   <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Email Authorization - IntelliJob</title>
+  <title>Email Authorization</title>
   <style>
     * {
       margin: 0;
@@ -1211,14 +1170,15 @@ function getSuccessHTMLPositive() {
   </html>`;
   }
   
-  // Authorization success HTML
-  function getSuccessHTML() {
+
+// Success HTML function
+function getSuccessHTML() {
     return `<!DOCTYPE html>
   <html lang="en">
   <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Authorization Complete - IntelliJob</title>
+  <title>Authorization Complete</title>
   <style>
     * {
       margin: 0;
@@ -1321,19 +1281,6 @@ function getSuccessHTMLPositive() {
     .btn:hover {
       transform: translateY(-2px);
     }
-  
-    .footer {
-      margin-top: 30px;
-      color: #718096;
-      font-size: 14px;
-    }
-  
-    .footer strong {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
   </style>
   </head>
   <body>
@@ -1346,296 +1293,15 @@ function getSuccessHTMLPositive() {
     <h1>All Set!</h1>
     <p>Your authorization is complete. We'll now proceed with your application.</p>
     <button class="btn" onclick="window.close()">Close Window</button>
-    <div class="footer">
-      Powered by <strong>IntelliJob</strong> from Suntrenia
-    </div>
   </div>
   </body>
   </html>`;
   }
+  
 
-
-  // Test route with environment info
-app.get('/', (req, res) => {
-    const envInfo = {
-      email_user: process.env.EMAIL_USER ? 'Set' : 'Missing',
-      mongodb_uri: process.env.MONGODB_URI ? 'Set' : 'Missing',
-      node_env: process.env.NODE_ENV || 'development',
-      google_client_id: process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Missing',
-      google_redirect_uri: process.env.GOOGLE_REDIRECT_URI ? 'Set' : 'Missing'
-    };
-  
-    res.json({
-      message: '🟢 Backend is running',
-      environment: envInfo,
-      timestamp: new Date().toISOString(),
-      version: '1.0.0'
-    });
-  });
-  
-  // Health check endpoint
-  app.get('/health', async (req, res) => {
-    const health = {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      checks: {}
-    };
-    
-    // Check MongoDB
-    try {
-      const client = new MongoClient(process.env.MONGODB_URI);
-      await client.connect();
-      await client.db().admin().ping();
-      await client.close();
-      health.checks.mongodb = 'ok';
-    } catch (error) {
-      health.checks.mongodb = 'error';
-      health.status = 'degraded';
-    }
-    
-    // Check SMTP
-    try {
-      await transporter.verify();
-      health.checks.smtp = 'ok';
-    } catch (error) {
-      health.checks.smtp = 'error';
-      health.status = 'degraded';
-    }
-    
-    res.json(health);
-  });
-  
-  // Get all user responses
-  app.get('/api/user-responses', async (req, res) => {
-    const { userId } = req.query;
-  
-    console.log('📋 GET USER-RESPONSES CALLED:');
-    console.log('📋 Query parameters:', req.query);
-    console.log('📋 UserId received:', userId);
-  
-    if (!userId) {
-      console.log('❌ Missing userId parameter');
-      return res.status(400).json({ error: 'userId is required' });
-    }
-  
-    let mongoClient;
-  
-    try {
-      console.log('🗄️ Connecting to MongoDB...');
-      mongoClient = new MongoClient(process.env.MONGODB_URI);
-      await mongoClient.connect();
-      console.log('✅ Connected to MongoDB');
-  
-      const db = mongoClient.db('olukayode_sage');
-      const collection = db.collection('user_application_response');
-  
-      // Get all responses for this user, sorted by timestamp (newest first)
-      console.log(`🔍 Retrieving responses for user: ${userId}`);
-      const userResponses = await collection.find({ userId }).sort({ timestamp: -1 }).toArray();
-  
-      console.log(`✅ Found ${userResponses.length} responses for user ${userId}`);
-      console.log('📊 Responses found:', userResponses.map(r => ({
-        id: r._id,
-        response: r.response,
-        jobId: r.jobId,
-        timestamp: r.timestamp
-      })));
-      
-      await mongoClient.close();
-  
-      res.json({
-        success: true,
-        count: userResponses.length,
-        responses: userResponses,
-        timestamp: new Date().toISOString()
-      });
-  
-    } catch (error) {
-      console.error('❌ ERROR retrieving user responses:', error);
-      console.error('❌ Error stack:', error.stack);
-      
-      if (mongoClient) {
-        await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
-      }
-  
-      res.status(500).json({ 
-        error: 'Failed to retrieve user responses',
-        message: error.message,
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
-  
-  // Main response handler
-  app.get('/handle-response', async (req, res) => {
-    const { 
-      response, 
-      emailId, 
-      jobId, 
-      userId, 
-      emailSubject = 'Not provided', 
-      companyName = 'Unknown Company', 
-      jobTitle = 'Unknown Position',
-      applicationStatus = 'pending',
-      emailDate = new Date().toISOString(),
-      emailFrom = 'Unknown Sender'
-    } = req.query;
-  
-    const trimmedUserId = (userId || '').trim();
-    const trimmedResponse = (response || '').trim();
-    const trimmedEmailId = (emailId || '').trim();
-    const trimmedJobId = (jobId || '').trim();
-    const trimmedEmailSubject = (emailSubject || '').trim();
-    const trimmedCompanyName = (companyName || '').trim();
-    const trimmedJobTitle = (jobTitle || '').trim();
-  
-    console.log('\n🎯 HANDLE-RESPONSE CALLED:');
-    console.log('📩 Received parameters:', { 
-      response: `${response}`, 
-      emailId: `${emailId}`, 
-      jobId: `${jobId}`, 
-      userId: `${userId}`,
-      emailSubject: `${emailSubject}`,
-      companyName: `${companyName}`,
-      jobTitle: `${jobTitle}`
-    });
-    console.log('📩 Trimmed parameters:', { 
-      response: `${trimmedResponse}`, 
-      emailId: `${trimmedEmailId}`, 
-      jobId: `${trimmedJobId}`, 
-      userId: `${trimmedUserId}`,
-      emailSubject: `${trimmedEmailSubject}`,
-      companyName: `${trimmedCompanyName}`,
-      jobTitle: `${trimmedJobTitle}`
-    });
-  
-    // Validate required parameters
-    if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
-      console.log('❌ Missing required parameters after trimming');
-      return res.status(400).send('Missing required parameters');
-    }
-  
-    let mongoClient;
-  
-    try {
-      console.log('🗄️ Connecting to MongoDB...');
-      mongoClient = new MongoClient(process.env.MONGODB_URI);
-      await mongoClient.connect();
-      console.log('✅ Connected to MongoDB');
-  
-      const db = mongoClient.db('olukayode_sage');
-  
-      // Store the response with ALL parameters and default values
-      console.log('💾 Storing response in database with all parameters...');
-      const responseData = {
-        userId: trimmedUserId,
-        response: trimmedResponse,
-        emailId: trimmedEmailId,
-        jobId: trimmedJobId,
-        emailSubject: trimmedEmailSubject,
-        companyName: trimmedCompanyName,
-        jobTitle: trimmedJobTitle,
-        applicationStatus: applicationStatus,
-        emailDate: emailDate,
-        emailFrom: emailFrom,
-        timestamp: new Date(),
-        processed: false
-      };
-  
-      const insertResult = await db.collection('user_application_response').insertOne(responseData);
-  
-      console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
-      console.log('📊 Stored data:', responseData);
-  
-      // Immediate response check
-      console.log('🚀 Triggering immediate response check...');
-      const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
-      console.log('✅ Immediate check completed:', checkResult);
-  
-      // Update the record as processed
-      await db.collection('user_application_response').updateOne(
-        { _id: insertResult.insertedId },
-        { $set: { processed: true, processedAt: new Date() } }
-      );
-      console.log('✅ Response marked as processed');
-  
-      // 🔥 WEB SOCKET NOTIFICATION: Notify frontend that data is ready
-      const payload = {
-        type: trimmedResponse.toLowerCase(),
-        userId: trimmedUserId,
-        jobId: trimmedJobId,
-        emailId: trimmedEmailId,
-        responseId: insertResult.insertedId,
-        message: `User selected "${trimmedResponse}" for the application`,
-        timestamp: new Date().toISOString()
-      };
-  
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(payload));
-        }
-      });
-      console.log('📢 WebSocket notification sent to all connected clients');
-  
-      // Determine if response is positive or negative
-      const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-      const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
-      
-      console.log('📤 Sending HTML response to client');
-      
-      if (isPositive) {
-        // 🔥 CHECK AUTHORIZATION
-        console.log('🔐 Checking user authorization...');
-        const authorized = await checkIfUserAuthorized(trimmedUserId);
-        
-        // ✅ NOW close MongoDB
-        await mongoClient.close();
-        console.log('✅ MongoDB connection closed');
-        
-        if (!authorized) {
-          console.log(`🔐 User ${trimmedUserId} not authorized - showing authorization page`);
-          res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
-        } else {
-          console.log(`✅ User ${trimmedUserId} already authorized - processing application`);
-          await checkForResponses(trimmedUserId, trimmedEmailId, trimmedJobId, 'proceed');
-          res.send(getSuccessHTMLPositive());
-        }
-      } else {
-        // ✅ Close MongoDB for negative response
-        await mongoClient.close();
-        console.log('✅ MongoDB connection closed');
-        
-        // Send negative response HTML
-        res.send(getSuccessHTMLNegative());
-      }
-      
-    } catch (err) {
-      console.error('❌ ERROR in handle-response:', err);
-      console.error('Stack trace:', err.stack);
-      
-      if (mongoClient) {
-        await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
-      }
-      
-      res.status(500).send(
-        `<html>
-          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-            <h1>Server Error</h1>
-            <p>Please try again later. If the problem persists, contact support.</p>
-            <p><small>Error: ${err.message}</small></p>
-          </body>
-        </html>`
-      );
-    }
-  });
-  
-  // Route to initiate Google OAuth
-  app.get('/auth/google', (req, res) => {
+// Route to initiate Google OAuth
+app.get('/auth/google', (req, res) => {
     const { userId, jobId, emailId, responseId } = req.query;
-    
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REDIRECT_URI) {
-      return res.status(500).send('Google OAuth not configured');
-    }
     
     // Store these in session or pass as state parameter
     const state = Buffer.from(JSON.stringify({ userId, jobId, emailId, responseId })).toString('base64');
@@ -1649,7 +1315,6 @@ app.get('/', (req, res) => {
       `prompt=consent&` +
       `state=${state}`;
     
-    console.log(`🔐 Initiating Google OAuth for user: ${userId}`);
     res.redirect(googleAuthUrl);
   });
   
@@ -1658,19 +1323,12 @@ app.get('/', (req, res) => {
     const { code, state } = req.query;
     
     if (!code) {
-      console.error('❌ OAuth callback missing code');
-      return res.status(400).send('Authorization failed - no code received');
-    }
-    
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
-      console.error('❌ OAuth configuration missing');
-      return res.status(500).send('OAuth configuration incomplete');
+      return res.status(400).send('Authorization failed');
     }
     
     try {
       // Decode state to get user info
       const { userId, jobId, emailId, responseId } = JSON.parse(Buffer.from(state, 'base64').toString());
-      console.log(`🔄 Processing OAuth callback for user: ${userId}`);
       
       // Exchange code for tokens
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -1686,11 +1344,6 @@ app.get('/', (req, res) => {
       });
       
       const tokens = await tokenResponse.json();
-      
-      if (tokens.error) {
-        console.error('❌ Token exchange failed:', tokens.error);
-        throw new Error(`Token exchange failed: ${tokens.error_description || tokens.error}`);
-      }
       
       // Store tokens in database
       const mongoClient = new MongoClient(process.env.MONGODB_URI);
@@ -1713,37 +1366,12 @@ app.get('/', (req, res) => {
       
       await mongoClient.close();
       
-      // 🔥 NEW: Now that user is authorized, automatically process the application
-      console.log(`✅ User ${userId} authorized - triggering application process`);
-      await checkForResponses(userId, emailId, jobId, 'proceed');
-      
-      // 🔥 NEW: Notify frontend via WebSocket that authorization is complete
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: "authorization_complete",
-            userId,
-            jobId,
-            emailId,
-            message: "Authorization successful - application processing"
-          }));
-        }
-      });
-      
-      console.log(`✅ OAuth flow completed successfully for user: ${userId}`);
+      // Redirect to success page
       res.send(getSuccessHTML());
       
     } catch (error) {
-      console.error('❌ OAuth error:', error);
-      res.status(500).send(
-        `<html>
-          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-            <h1>Authorization Failed</h1>
-            <p>Please try again later.</p>
-            <p><small>Error: ${error.message}</small></p>
-          </body>
-        </html>`
-      );
+      console.error('OAuth error:', error);
+      res.status(500).send('Authorization failed. Please try again.');
     }
   });
   
@@ -1751,13 +1379,12 @@ app.get('/', (req, res) => {
   app.get('/auth/use-company-email', async (req, res) => {
     const { userId, jobId, emailId, responseId } = req.query;
     
-    console.log(`🏢 User ${userId} selected company email option`);
-    
     try {
       const mongoClient = new MongoClient(process.env.MONGODB_URI);
       await mongoClient.connect();
       const db = mongoClient.db('olukayode_sage');
       
+      // Mark user as using company email
       await db.collection('user_gmail_tokens').updateOne(
         { userId },
         { 
@@ -1771,103 +1398,27 @@ app.get('/', (req, res) => {
       
       await mongoClient.close();
       
-      // 🔥 NEW: Now that user chose company email, automatically process the application
-      console.log(`✅ User ${userId} chose company email - triggering application process`);
-      await checkForResponses(userId, emailId, jobId, 'proceed');
-      
-      // 🔥 NEW: Notify frontend via WebSocket
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: "authorization_complete",
-            userId,
-            jobId,
-            emailId,
-            message: "Company email selected - application processing"
-          }));
-        }
-      });
-      
+      // Redirect to success page
       res.send(getSuccessHTML());
       
     } catch (error) {
-      console.error('❌ Error setting company email:', error);
-      res.status(500).send(
-        `<html>
-          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-            <h1>Error</h1>
-            <p>An error occurred. Please try again.</p>
-            <p><small>Error: ${error.message}</small></p>
-          </body>
-        </html>`
-      );
+      console.error('Error setting company email:', error);
+      res.status(500).send('An error occurred. Please try again.');
     }
   });
-  
-  // 404 handler
-  app.use('*', (req, res) => {
-    res.status(404).json({
-      error: 'Route not found',
-      path: req.originalUrl,
-      timestamp: new Date().toISOString()
-    });
-  });
-  
-  // Global error handler
-  app.use((error, req, res, next) => {
-    console.error('🚨 Global error handler:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  });
-  
-  // Server startup with comprehensive logging
-  server.listen(PORT, async () => {
-    console.log(`\n🚀 Server starting...`);
-    console.log(`📍 Port: ${PORT}`);
-    console.log(`📧 Email User: ${process.env.EMAIL_USER}`);
-    console.log(`🗄️ MongoDB: ${process.env.MONGODB_URI ? 'Configured' : 'Missing'}`);
-    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-    
-    // Validate environment first
-    validateEnvironment();
-    
-    // Initialize database
-    await initializeDatabase();
-    
-    // Test connections on startup
-    console.log('\n🔗 Testing connections...');
-    await testImapConnection();
-  
-    console.log(`\n✅ Server running on http://localhost:${PORT}`);
-    console.log('📊 Available endpoints:');
-    console.log('   GET  /                    - Health check');
-    console.log('   GET  /health              - Detailed health status');
-    console.log('   GET  /api/user-responses  - Get user responses');
-    console.log('   GET  /handle-response     - Process user responses');
-    console.log('   GET  /auth/google         - Start OAuth flow');
-    console.log('   GET  /auth/google/callback - OAuth callback');
-    console.log('   GET  /auth/use-company-email - Use company email');
-    console.log('\n🔧 Logs available in Render Dashboard → Your Service → Logs');
-  });
-  
-  // Graceful shutdown
-  process.on('SIGTERM', async () => {
-    console.log('🔄 Received SIGTERM, shutting down gracefully...');
-    server.close(() => {
-      console.log('✅ HTTP server closed');
-      process.exit(0);
-    });
-  });
-  
-  process.on('SIGINT', async () => {
-    console.log('🔄 Received SIGINT, shutting down gracefully...');
-    server.close(() => {
-      console.log('✅ HTTP server closed');
-      process.exit(0);
-    });
-  });
-  
-  module.exports = app;
+
+// Server startup with comprehensive logging
+server.listen(PORT, async () => {
+  console.log(`\n🚀 Server starting...`);
+  console.log(`📍 Port: ${PORT}`);
+  console.log(`📧 Email User: ${process.env.EMAIL_USER}`);
+  console.log(`🗄️ MongoDB: ${process.env.MONGODB_URI ? 'Configured' : 'Missing'}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Test connections on startup
+  console.log('\n🔗 Testing connections...');
+  await testImapConnection();
+
+  console.log(`\n✅ Server running on http://localhost:${PORT}`);
+  console.log('📊 Logs available in Render Dashboard → Your Service → Logs');
+});
