@@ -1318,8 +1318,64 @@ app.get('/auth/google', (req, res) => {
     res.redirect(googleAuthUrl);
   });
   
+//   // OAuth callback route
+//   app.get('/auth/google/callback', async (req, res) => {
+//     const { code, state } = req.query;
+    
+//     if (!code) {
+//       return res.status(400).send('Authorization failed');
+//     }
+    
+//     try {
+//       // Decode state to get user info
+//       const { userId, jobId, emailId, responseId } = JSON.parse(Buffer.from(state, 'base64').toString());
+      
+//       // Exchange code for tokens
+//       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+//         body: new URLSearchParams({
+//           code,
+//           client_id: process.env.GOOGLE_CLIENT_ID,
+//           client_secret: process.env.GOOGLE_CLIENT_SECRET,
+//           redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+//           grant_type: 'authorization_code'
+//         })
+//       });
+      
+//       const tokens = await tokenResponse.json();
+      
+//       // Store tokens in database
+//       const mongoClient = new MongoClient(process.env.MONGODB_URI);
+//       await mongoClient.connect();
+//       const db = mongoClient.db('olukayode_sage');
+      
+//       await db.collection('user_gmail_tokens').updateOne(
+//         { userId },
+//         { 
+//           $set: { 
+//             accessToken: tokens.access_token,
+//             refreshToken: tokens.refresh_token,
+//             expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+//             updatedAt: new Date(),
+//             usePersonalEmail: true
+//           } 
+//         },
+//         { upsert: true }
+//       );
+      
+//       await mongoClient.close();
+      
+//       // Redirect to success page
+//       res.send(getSuccessHTML());
+      
+//     } catch (error) {
+//       console.error('OAuth error:', error);
+//       res.status(500).send('Authorization failed. Please try again.');
+//     }
+//   });
   // OAuth callback route
-  app.get('/auth/google/callback', async (req, res) => {
+app.get('/auth/google/callback', async (req, res) => {
     const { code, state } = req.query;
     
     if (!code) {
@@ -1327,7 +1383,6 @@ app.get('/auth/google', (req, res) => {
     }
     
     try {
-      // Decode state to get user info
       const { userId, jobId, emailId, responseId } = JSON.parse(Buffer.from(state, 'base64').toString());
       
       // Exchange code for tokens
@@ -1366,7 +1421,23 @@ app.get('/auth/google', (req, res) => {
       
       await mongoClient.close();
       
-      // Redirect to success page
+      // 🔥 NEW: Now that user is authorized, automatically process the application
+      console.log(`✅ User ${userId} authorized - triggering application process`);
+      await checkForResponses(userId, emailId, jobId, 'proceed');
+      
+      // 🔥 NEW: Notify frontend via WebSocket that authorization is complete
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: "authorization_complete",
+            userId,
+            jobId,
+            emailId,
+            message: "Authorization successful - application processing"
+          }));
+        }
+      });
+      
       res.send(getSuccessHTML());
       
     } catch (error) {
@@ -1376,7 +1447,9 @@ app.get('/auth/google', (req, res) => {
   });
   
   // Route for using company email
-  app.get('/auth/use-company-email', async (req, res) => {
+  
+// Route for using company email
+app.get('/auth/use-company-email', async (req, res) => {
     const { userId, jobId, emailId, responseId } = req.query;
     
     try {
@@ -1384,7 +1457,6 @@ app.get('/auth/google', (req, res) => {
       await mongoClient.connect();
       const db = mongoClient.db('olukayode_sage');
       
-      // Mark user as using company email
       await db.collection('user_gmail_tokens').updateOne(
         { userId },
         { 
@@ -1398,7 +1470,23 @@ app.get('/auth/google', (req, res) => {
       
       await mongoClient.close();
       
-      // Redirect to success page
+      // 🔥 NEW: Now that user chose company email, automatically process the application
+      console.log(`✅ User ${userId} chose company email - triggering application process`);
+      await checkForResponses(userId, emailId, jobId, 'proceed');
+      
+      // 🔥 NEW: Notify frontend via WebSocket
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: "authorization_complete",
+            userId,
+            jobId,
+            emailId,
+            message: "Company email selected - application processing"
+          }));
+        }
+      });
+      
       res.send(getSuccessHTML());
       
     } catch (error) {
