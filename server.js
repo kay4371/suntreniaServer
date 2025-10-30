@@ -619,6 +619,8 @@ app.get('/api/user-responses', async (req, res) => {
 //     );
 //   }
 // });
+
+
 app.get('/handle-response', async (req, res) => {
     const { 
       response, 
@@ -642,7 +644,7 @@ app.get('/handle-response', async (req, res) => {
     const trimmedJobTitle = (jobTitle || '').trim();
   
     console.log('\n🎯 HANDLE-RESPONSE CALLED:');
-    console.log('📩 Received parameters:', { 
+    console.log('📩 Trimmed parameters:', { 
       response: trimmedResponse, 
       userId: trimmedUserId,
       jobId: trimmedJobId
@@ -664,7 +666,7 @@ app.get('/handle-response', async (req, res) => {
       const db = mongoClient.db('olukayode_sage');
   
       // Store the response
-      console.log('💾 Storing response in database...');
+      console.log('💾 Storing response in database with all parameters...');
       const responseData = {
         userId: trimmedUserId,
         response: trimmedResponse,
@@ -682,8 +684,9 @@ app.get('/handle-response', async (req, res) => {
   
       const insertResult = await db.collection('user_application_response').insertOne(responseData);
       console.log('✅ Response stored in DB with ID:', insertResult.insertedId);
+      console.log('📊 Stored data:', responseData);
   
-      // 🔥 Immediate response check (keep this logic!)
+      // 🔥 Immediate response check
       console.log('🚀 Triggering immediate response check...');
       const checkResult = await checkForResponsesImmediately(trimmedUserId, trimmedEmailId, trimmedJobId);
       console.log('✅ Immediate check completed:', checkResult);
@@ -711,38 +714,217 @@ app.get('/handle-response', async (req, res) => {
           client.send(JSON.stringify(payload));
         }
       });
-      console.log('📢 WebSocket notification sent');
+      console.log('📢 WebSocket notification sent to all connected clients');
   
-      await mongoClient.close();
-      console.log('✅ MongoDB connection closed');
+      // ⚠️ DON'T CLOSE MONGODB YET - we need it for authorization check!
   
       // Determine if response is positive
       const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
       const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
       
+      console.log('📤 Sending HTML response to client');
+      
       if (isPositive) {
-        // 🔥 CHECK AUTHORIZATION
+        // 🔥 CHECK AUTHORIZATION (MongoDB still open!)
+        console.log('🔐 Checking user authorization...');
         const authorized = await checkIfUserAuthorized(trimmedUserId);
+        
+        // ✅ NOW close MongoDB
+        await mongoClient.close();
+        console.log('✅ MongoDB connection closed');
         
         if (!authorized) {
           console.log(`🔐 User ${trimmedUserId} not authorized - showing authorization page`);
-          // Show authorization page
           res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
         } else {
           console.log(`✅ User ${trimmedUserId} already authorized - processing application`);
-          // User is already authorized, process immediately
           await checkForResponses(trimmedUserId, trimmedEmailId, trimmedJobId, 'proceed');
-          // Show success page with positive message
           res.send(getSuccessHTMLPositive());
         }
       } else {
-        // Negative response - show decline page
-        res.send(getSuccessHTMLNegative());
+        // ✅ Close MongoDB for negative response
+        await mongoClient.close();
+        console.log('✅ MongoDB connection closed');
+        
+        // Negative response HTML (your original long HTML)
+        res.send(
+          `<!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>Response Received</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+          
+            body {
+              font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              background-size: 300% 300%;
+              animation: gradientShift 6s ease infinite;
+              margin: 0;
+              padding: 20px;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+          
+            @keyframes gradientShift {
+              0%, 100% { background-position: 0% 50%; }
+              50% { background-position: 100% 50%; }
+            }
+          
+            .container {
+              max-width: 500px;
+              margin: 50px auto;
+              background: rgba(255, 255, 255, 0.95);
+              backdrop-filter: blur(20px);
+              padding: 40px;
+              border-radius: 24px;
+              box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+              text-align: center;
+              border: 1px solid rgba(255, 255, 255, 0.2);
+              animation: containerFloat 0.8s ease-out;
+            }
+          
+            @keyframes containerFloat {
+              from { opacity: 0; transform: translateY(30px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+          
+            .circle {
+              width: 100px;
+              height: 100px;
+              background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);
+              border-radius: 50%;
+              margin: 0 auto 30px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 15px 35px rgba(255, 94, 98, 0.3);
+              position: relative;
+              animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s both;
+            }
+          
+            .icon {
+              color: white;
+              font-size: 38px;
+              font-weight: bold;
+              opacity: 0;
+              animation: iconReveal 0.6s ease 1s both;
+            }
+          
+            h1 {
+              color: #1a202c;
+              font-size: 32px;
+              font-weight: 800;
+              margin-bottom: 15px;
+              animation: slideUp 0.6s ease 0.4s both;
+            }
+          
+            p {
+              color: #4a5568;
+              font-size: 17px;
+              margin-bottom: 20px;
+              line-height: 1.6;
+              animation: slideUp 0.6s ease 0.6s both;
+            }
+          
+            @keyframes slideUp {
+              from { opacity: 0; transform: translateY(20px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+          
+            .button-row {
+              display: flex;
+              gap: 20px;
+              margin: 35px 0;
+              animation: slideUp 0.6s ease 0.8s both;
+            }
+          
+            .btn {
+              flex: 1;
+              padding: 16px 20px;
+              border: none;
+              border-radius: 16px;
+              cursor: pointer;
+              font-weight: 700;
+              font-size: 15px;
+              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+              position: relative;
+              overflow: hidden;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+          
+            .btn-blue {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
+            }
+          
+            .btn-blue:hover {
+              transform: translateY(-3px);
+              box-shadow: 0 12px 25px rgba(102, 126, 234, 0.45);
+            }
+          
+            .footer {
+              margin-top: 35px;
+              color: #718096;
+              font-size: 14px;
+              animation: slideUp 0.6s ease 1s both;
+            }
+          
+            .footer strong {
+              background: linear-gradient(135deg, #667eea, #764ba2);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            }
+          </style>
+          </head>
+          <body>
+          <div class="container">
+            <div class="circle">
+              <div class="icon">✓</div>
+            </div>
+            <h1>Response Received</h1>
+            <p>We've noted your decision not to proceed with this application.</p>
+            <div class="button-row">
+              <button class="btn btn-blue" onclick="window.close()">
+                Exit
+              </button>
+            </div>
+            <div class="footer">
+              Powered by <strong>IntelliJob</strong> from Suntrenia
+            </div>
+          </div>
+          
+          <script>
+            console.log('Response processed successfully');
+            
+            document.querySelectorAll('.btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                this.style.transform = 'scale(0.98) translateY(-3px)';
+                setTimeout(() => {
+                  this.style.transform = '';
+                }, 150);
+              });
+            });
+          </script>
+          </body>
+          </html>`
+        );
       }
       
     } catch (err) {
       console.error('❌ ERROR in handle-response:', err);
-      console.error('❌ Error stack:', err.stack);
+      console.error('Stack trace:', err.stack);
       
       if (mongoClient) {
         await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
@@ -759,7 +941,6 @@ app.get('/handle-response', async (req, res) => {
       );
     }
   });
- 
   // Beautiful Authorization Page HTML
 function getAuthorizationHTML(userId, jobId, emailId, responseId) {
     return `<!DOCTYPE html>
