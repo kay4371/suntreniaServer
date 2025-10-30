@@ -18,13 +18,19 @@ const wss = new WebSocket.Server({ server });
 const clients = new Map(); // userId → ws
 
 // ADD THIS RIGHT HERE - BEFORE ANY OTHER MIDDLEWARE
-app.use((req, res, next) => {
-    res.removeHeader('Content-Security-Policy');
-    res.removeHeader('X-Content-Security-Policy');
-    res.removeHeader('X-WebKit-CSP');
-    next();
-  });
+// Middleware
+app.use(cors());
 
+// Remove CSP headers
+app.use((req, res, next) => {
+  res.removeHeader('Content-Security-Policy');
+  res.removeHeader('X-Content-Security-Policy');
+  res.removeHeader('X-WebKit-CSP');
+  next();
+});
+
+app.use(express.json());
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
 wss.on('connection', (ws, req) => {
   console.log('🔌 WS client connected');
