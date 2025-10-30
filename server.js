@@ -1552,59 +1552,161 @@ function getSuccessHTML() {
 //   });
   // Route to initiate Google OAuth
 // Route to initiate Google OAuth - ENHANCED VERSION
+// REPLACE your existing /auth/google route with this enhanced version:
+
 app.get('/auth/google', (req, res) => {
-    console.log('🔄 /auth/google route hit');
-    console.log('📋 Query parameters:', req.query);
-    console.log('📋 Headers:', req.headers);
+    console.log('\n🔵 ============ /auth/google ROUTE HIT ============');
+    console.log('🔵 Timestamp:', new Date().toISOString());
+    console.log('🔵 Full URL:', req.url);
+    console.log('🔵 Query parameters:', JSON.stringify(req.query, null, 2));
+    console.log('🔵 Headers:', JSON.stringify(req.headers, null, 2));
     
     const { userId, jobId, emailId, responseId } = req.query;
     
+    // Log each parameter individually
+    console.log('🔵 userId:', userId);
+    console.log('🔵 jobId:', jobId);
+    console.log('🔵 emailId:', emailId);
+    console.log('🔵 responseId:', responseId);
+    
     // Validate required parameters
     if (!userId || !jobId) {
-      console.log('❌ Missing required parameters for OAuth');
-      console.log('❌ Received - userId:', userId, 'jobId:', jobId);
+      console.log('❌ VALIDATION FAILED - Missing required parameters');
+      console.log('❌ userId present?', !!userId);
+      console.log('❌ jobId present?', !!jobId);
+      
       return res.status(400).send(`
+        <!DOCTYPE html>
         <html>
-          <body style="font-family: Arial; padding: 40px; text-align: center;">
-            <h1>Missing Parameters</h1>
+        <head>
+          <title>Missing Parameters</title>
+          <style>
+            body { 
+              font-family: Arial; 
+              padding: 40px; 
+              text-align: center;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: white;
+              padding: 40px;
+              border-radius: 20px;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+              max-width: 500px;
+            }
+            .error { color: #e53e3e; font-weight: bold; }
+            .debug { 
+              background: #f7fafc; 
+              padding: 15px; 
+              border-radius: 8px; 
+              margin: 20px 0;
+              text-align: left;
+              font-family: monospace;
+              font-size: 12px;
+            }
+            .btn {
+              background: #667eea;
+              color: white;
+              padding: 12px 24px;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              margin: 10px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1 class="error">⚠️ Missing Parameters</h1>
             <p>Required parameters are missing. Please try again.</p>
-            <p><small>userId: ${userId || 'missing'}, jobId: ${jobId || 'missing'}</small></p>
-            <button onclick="window.history.back()">Go Back</button>
-          </body>
+            <div class="debug">
+              <strong>Debug Info:</strong><br>
+              userId: ${userId || 'MISSING'}<br>
+              jobId: ${jobId || 'MISSING'}<br>
+              emailId: ${emailId || 'not required'}<br>
+              responseId: ${responseId || 'not required'}
+            </div>
+            <button class="btn" onclick="window.history.back()">Go Back</button>
+            <button class="btn" onclick="window.location.href='/test-oauth-flow'">Test OAuth Flow</button>
+          </div>
+        </body>
         </html>
       `);
     }
     
-    // Check if Google OAuth is configured
-    console.log('🔍 Checking OAuth configuration...');
-    console.log('🔑 GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID);
-    console.log('🔑 GOOGLE_REDIRECT_URI exists:', !!process.env.GOOGLE_REDIRECT_URI);
-    console.log('🔑 GOOGLE_CLIENT_ID value:', process.env.GOOGLE_CLIENT_ID?.substring(0, 20) + '...');
-    console.log('🔑 GOOGLE_REDIRECT_URI value:', process.env.GOOGLE_REDIRECT_URI);
+    // Check OAuth configuration
+    console.log('🔵 Checking OAuth configuration...');
+    console.log('🔵 GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID);
+    console.log('🔵 GOOGLE_CLIENT_ID length:', process.env.GOOGLE_CLIENT_ID?.length);
+    console.log('🔵 GOOGLE_CLIENT_ID preview:', process.env.GOOGLE_CLIENT_ID?.substring(0, 20) + '...');
+    console.log('🔵 GOOGLE_REDIRECT_URI:', process.env.GOOGLE_REDIRECT_URI);
+    console.log('🔵 GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET);
     
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REDIRECT_URI) {
-      console.log('❌ Google OAuth not configured');
+      console.log('❌ OAuth configuration MISSING');
       return res.status(500).send(`
+        <!DOCTYPE html>
         <html>
-          <body style="font-family: Arial; padding: 40px; text-align: center;">
-            <h1>OAuth Not Configured</h1>
+        <head>
+          <title>OAuth Not Configured</title>
+          <style>
+            body { 
+              font-family: Arial; 
+              padding: 40px; 
+              text-align: center;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: white;
+              padding: 40px;
+              border-radius: 20px;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+              max-width: 500px;
+            }
+            .error { color: #e53e3e; font-weight: bold; }
+            .btn {
+              background: #667eea;
+              color: white;
+              padding: 12px 24px;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              margin: 10px;
+              text-decoration: none;
+              display: inline-block;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1 class="error">⚙️ OAuth Not Configured</h1>
             <p>Google OAuth is not properly configured on the server.</p>
             <p><strong>Missing:</strong> ${!process.env.GOOGLE_CLIENT_ID ? 'Client ID ' : ''}${!process.env.GOOGLE_REDIRECT_URI ? 'Redirect URI' : ''}</p>
-            <button onclick="window.location.href='/auth/use-company-email?userId=${userId}&jobId=${jobId}&emailId=${emailId}&responseId=${responseId}'">Use Company Email Instead</button>
-            <button onclick="window.history.back()">Go Back</button>
-          </body>
+            <a class="btn" href="/auth/use-company-email?userId=${userId}&jobId=${jobId}&emailId=${emailId || ''}&responseId=${responseId || ''}">Use Company Email Instead</a>
+            <button class="btn" onclick="window.history.back()">Go Back</button>
+          </div>
+        </body>
         </html>
       `);
     }
     
     try {
-      // Store these in session or pass as state parameter
+      // Build state parameter
       const stateData = { userId, jobId, emailId, responseId };
       const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
       
-      console.log('📦 State data:', stateData);
-      console.log('📦 Encoded state:', state);
+      console.log('🔵 State data:', JSON.stringify(stateData));
+      console.log('🔵 Encoded state:', state);
       
+      // Build Google OAuth URL
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${encodeURIComponent(process.env.GOOGLE_CLIENT_ID)}&` +
         `redirect_uri=${encodeURIComponent(process.env.GOOGLE_REDIRECT_URI)}&` +
@@ -1614,26 +1716,92 @@ app.get('/auth/google', (req, res) => {
         `prompt=consent&` +
         `state=${encodeURIComponent(state)}`;
       
-      console.log('🔗 Full Google OAuth URL:', googleAuthUrl);
-      console.log('✅ Redirecting to Google OAuth...');
+      console.log('🔵 Full Google OAuth URL (first 200 chars):', googleAuthUrl.substring(0, 200));
+      console.log('✅ Redirecting to Google OAuth NOW...');
+      console.log('🔵 ============ END /auth/google ============\n');
       
       res.redirect(googleAuthUrl);
+      
     } catch (error) {
-      console.error('❌ Error building OAuth URL:', error);
+      console.error('❌ ERROR building OAuth URL:', error);
+      console.error('❌ Error name:', error.name);
+      console.error('❌ Error message:', error.message);
       console.error('❌ Error stack:', error.stack);
       
       return res.status(500).send(`
+        <!DOCTYPE html>
         <html>
-          <body style="font-family: Arial; padding: 40px; text-align: center;">
-            <h1>Redirect Error</h1>
+        <head>
+          <title>Redirect Error</title>
+          <style>
+            body { 
+              font-family: Arial; 
+              padding: 40px; 
+              text-align: center;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: white;
+              padding: 40px;
+              border-radius: 20px;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+              max-width: 500px;
+            }
+            .error { color: #e53e3e; font-weight: bold; }
+            .debug { 
+              background: #f7fafc; 
+              padding: 15px; 
+              border-radius: 8px; 
+              margin: 20px 0;
+              text-align: left;
+              font-family: monospace;
+              font-size: 12px;
+            }
+            .btn {
+              background: #667eea;
+              color: white;
+              padding: 12px 24px;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              margin: 10px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1 class="error">⚠️ Redirect Error</h1>
             <p>Unable to redirect to Google OAuth. Please try again.</p>
-            <p><small>Error: ${error.message}</small></p>
-            <button onclick="window.history.back()">Go Back</button>
-          </body>
+            <div class="debug">
+              <strong>Error Details:</strong><br>
+              ${error.message}
+            </div>
+            <button class="btn" onclick="window.history.back()">Go Back</button>
+            <button class="btn" onclick="window.location.href='/debug-oauth'">View Debug Info</button>
+          </div>
+        </body>
         </html>
       `);
     }
-});
+  });
+
+// 👇 ADD THE TEST ROUTE RIGHT HERE 👇
+app.get('/test-auth-route', (req, res) => {
+    console.log('✅ Test route working!');
+    res.json({
+      message: 'Auth routes are accessible',
+      availableRoutes: [
+        '/auth/google',
+        '/auth/google/callback',
+        '/auth/use-company-email'
+      ],
+      timestamp: new Date().toISOString()
+    });
+  });
 
   // Fallback route if OAuth is not configured
 app.get('/auth/fallback', (req, res) => {
