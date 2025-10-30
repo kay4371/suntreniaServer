@@ -1300,31 +1300,50 @@ function getAuthorizationHTML(userId, jobId, emailId, responseId) {
     const responseId = '${responseId}';
 
     function authorizeGmail() {
-      console.log('🔵 authorizeGmail() function called');
-      
-      // Show loading immediately
-      const loading = document.getElementById('loading');
-      if (loading) {
-        loading.classList.add('active');
+        console.log('🔵 authorizeGmail() function called');
+        console.log('🔵 Current location:', window.location.href);
+        
+        // Show loading immediately
+        const loading = document.getElementById('loading');
+        if (loading) {
+          loading.classList.add('active');
+          console.log('🔵 Loading overlay activated');
+        }
+        
+        // Validate parameters
+        console.log('🔵 Parameters:', { userId, jobId, emailId, responseId });
+        
+        if (!userId || !jobId) {
+          alert('Error: Missing required parameters. Please contact support.');
+          if (loading) loading.classList.remove('active');
+          return;
+        }
+        
+        // Build the redirect URL
+        const params = new URLSearchParams({ 
+          userId: userId || '', 
+          jobId: jobId || '', 
+          emailId: emailId || '', 
+          responseId: responseId || '' 
+        });
+        
+        const redirectUrl = '/auth/google?' + params.toString();
+        console.log('🔵 Built redirect URL:', redirectUrl);
+        console.log('🔵 Full URL will be:', window.location.origin + redirectUrl);
+        
+        // Add a small delay to ensure loading shows
+        setTimeout(() => {
+          console.log('🔵 Executing redirect NOW...');
+          try {
+            window.location.href = redirectUrl;
+            console.log('🔵 Redirect command executed');
+          } catch (error) {
+            console.error('🔵 Redirect failed:', error);
+            alert('Redirect failed: ' + error.message);
+            if (loading) loading.classList.remove('active');
+          }
+        }, 100);
       }
-      
-      // Build the redirect URL
-      const params = new URLSearchParams({ 
-        userId: userId || '', 
-        jobId: jobId || '', 
-        emailId: emailId || '', 
-        responseId: responseId || '' 
-      });
-      
-      const redirectUrl = '/auth/google?' + params.toString();
-      console.log('🔵 Built redirect URL:', redirectUrl);
-      
-      // Add a small delay to ensure loading shows
-      setTimeout(() => {
-        console.log('🔵 Redirecting to:', redirectUrl);
-        window.location.href = redirectUrl;
-      }, 100);
-    }
 
     function useCompanyEmail() {
       if (confirm('Are you sure you want to use our company email? Using your personal Gmail is recommended for better response rates.')) {
@@ -1497,48 +1516,89 @@ function getSuccessHTML() {
 //     res.redirect(googleAuthUrl);
 //   });
   // Route to initiate Google OAuth
+// Route to initiate Google OAuth - ENHANCED VERSION
 app.get('/auth/google', (req, res) => {
     console.log('🔄 /auth/google route hit');
     console.log('📋 Query parameters:', req.query);
+    console.log('📋 Headers:', req.headers);
     
     const { userId, jobId, emailId, responseId } = req.query;
     
     // Validate required parameters
     if (!userId || !jobId) {
       console.log('❌ Missing required parameters for OAuth');
-      return res.status(400).send('Missing required parameters');
-    }
-    
-    // Check if Google OAuth is configured
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REDIRECT_URI) {
-      console.log('❌ Google OAuth not configured');
-      return res.status(500).send(`
+      console.log('❌ Received - userId:', userId, 'jobId:', jobId);
+      return res.status(400).send(`
         <html>
-          <body>
-            <h1>OAuth Not Configured</h1>
-            <p>Google OAuth is not properly configured on the server.</p>
-            <p>Please contact support or use the company email option.</p>
+          <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>Missing Parameters</h1>
+            <p>Required parameters are missing. Please try again.</p>
+            <p><small>userId: ${userId || 'missing'}, jobId: ${jobId || 'missing'}</small></p>
             <button onclick="window.history.back()">Go Back</button>
           </body>
         </html>
       `);
     }
     
-    // Store these in session or pass as state parameter
-    const state = Buffer.from(JSON.stringify({ userId, jobId, emailId, responseId })).toString('base64');
+    // Check if Google OAuth is configured
+    console.log('🔍 Checking OAuth configuration...');
+    console.log('🔑 GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID);
+    console.log('🔑 GOOGLE_REDIRECT_URI exists:', !!process.env.GOOGLE_REDIRECT_URI);
+    console.log('🔑 GOOGLE_CLIENT_ID value:', process.env.GOOGLE_CLIENT_ID?.substring(0, 20) + '...');
+    console.log('🔑 GOOGLE_REDIRECT_URI value:', process.env.GOOGLE_REDIRECT_URI);
     
-    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
-      `redirect_uri=${encodeURIComponent(process.env.GOOGLE_REDIRECT_URI)}&` +
-      `response_type=code&` +
-      `scope=${encodeURIComponent('https://www.googleapis.com/auth/gmail.send')}&` +
-      `access_type=offline&` +
-      `prompt=consent&` +
-      `state=${state}`;
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REDIRECT_URI) {
+      console.log('❌ Google OAuth not configured');
+      return res.status(500).send(`
+        <html>
+          <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>OAuth Not Configured</h1>
+            <p>Google OAuth is not properly configured on the server.</p>
+            <p><strong>Missing:</strong> ${!process.env.GOOGLE_CLIENT_ID ? 'Client ID ' : ''}${!process.env.GOOGLE_REDIRECT_URI ? 'Redirect URI' : ''}</p>
+            <button onclick="window.location.href='/auth/use-company-email?userId=${userId}&jobId=${jobId}&emailId=${emailId}&responseId=${responseId}'">Use Company Email Instead</button>
+            <button onclick="window.history.back()">Go Back</button>
+          </body>
+        </html>
+      `);
+    }
     
-    console.log('🔗 Redirecting to Google OAuth:', googleAuthUrl);
-    res.redirect(googleAuthUrl);
-  });
+    try {
+      // Store these in session or pass as state parameter
+      const stateData = { userId, jobId, emailId, responseId };
+      const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
+      
+      console.log('📦 State data:', stateData);
+      console.log('📦 Encoded state:', state);
+      
+      const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${encodeURIComponent(process.env.GOOGLE_CLIENT_ID)}&` +
+        `redirect_uri=${encodeURIComponent(process.env.GOOGLE_REDIRECT_URI)}&` +
+        `response_type=code&` +
+        `scope=${encodeURIComponent('https://www.googleapis.com/auth/gmail.send')}&` +
+        `access_type=offline&` +
+        `prompt=consent&` +
+        `state=${encodeURIComponent(state)}`;
+      
+      console.log('🔗 Full Google OAuth URL:', googleAuthUrl);
+      console.log('✅ Redirecting to Google OAuth...');
+      
+      res.redirect(googleAuthUrl);
+    } catch (error) {
+      console.error('❌ Error building OAuth URL:', error);
+      console.error('❌ Error stack:', error.stack);
+      
+      return res.status(500).send(`
+        <html>
+          <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>Redirect Error</h1>
+            <p>Unable to redirect to Google OAuth. Please try again.</p>
+            <p><small>Error: ${error.message}</small></p>
+            <button onclick="window.history.back()">Go Back</button>
+          </body>
+        </html>
+      `);
+    }
+});
 
   // Fallback route if OAuth is not configured
 app.get('/auth/fallback', (req, res) => {
