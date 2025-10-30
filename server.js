@@ -620,7 +620,6 @@ app.get('/api/user-responses', async (req, res) => {
 //   }
 // });
 
-
 app.get('/handle-response', async (req, res) => {
     const { 
       response, 
@@ -1562,6 +1561,93 @@ function getSuccessHTMLPositive() {
     </html>`;
   }
 
+
+  async function checkIfUserAuthorized(userId) {
+    const client = new MongoClient(process.env.MONGODB_URI);
+  
+    try {
+      await client.connect();
+      console.log('🔍 Connected to database to verify authorization');
+      
+      const db = client.db('olukayode_sage');
+      const userAuth = await db.collection('user_gmail_tokens').findOne({ userId });
+  
+      // No record at all — definitely unauthorized
+      if (!userAuth) {
+        console.log(`❌ No authorization record found for user ${userId} — requires setup.`);
+        return false;
+      }
+  
+      // If the user prefers the company email
+      if (userAuth.usePersonalEmail === false) {
+        console.log(`✅ User ${userId} authorized — using company email.`);
+        return true;
+      }
+  
+      // If the user authorized Gmail with access token
+      if (userAuth.usePersonalEmail === true && userAuth.accessToken) {
+        console.log(`✅ User ${userId} authorized — using personal Gmail.`);
+        return true;
+      }
+  
+      // Fallback case — record exists but incomplete
+      console.log(`⚠️ Incomplete authorization details for user ${userId}.`);
+      return false;
+  
+    } catch (error) {
+      console.error('❌ Error checking user authorization:', error);
+      throw error;
+    } finally {
+      await client.close();
+      console.log('🔒 MongoDB connection closed after auth check.');
+    }
+  }
+
+  async function checkForResponses(userId, emailId, jobId, responseType) {
+    console.log(`📧 Processing application for user ${userId}, job ${jobId}, response: ${responseType}`);
+    
+    const client = new MongoClient(process.env.MONGODB_URI);
+    
+    try {
+      await client.connect();
+      const db = client.db('olukayode_sage');
+      
+      // Update application status
+      const updateResult = await db.collection('applications').updateOne(
+        { userId, jobId, emailId },
+        { 
+          $set: { 
+            status: responseType === 'proceed' ? 'processing' : 'declined',
+            processedAt: new Date()
+          } 
+        }
+      );
+      
+      console.log(`✅ Application status updated:`, updateResult);
+      
+      // If proceeding, trigger email sending logic here
+      if (responseType === 'proceed') {
+        // Get user's email authorization preference
+        const userAuth = await db.collection('user_gmail_tokens').findOne({ userId });
+        
+        if (userAuth?.usePersonalEmail && userAuth.accessToken) {
+          console.log('📧 Sending via user\'s personal Gmail');
+          // Add your Gmail API send logic here
+        } else {
+          console.log('📧 Sending via company email');
+          // Add your company email send logic here
+        }
+      }
+      
+      return { success: true };
+      
+    } catch (error) {
+      console.error('❌ Error in checkForResponses:', error);
+      throw error;
+    } finally {
+      await client.close();
+    }
+  }
 
 // Enhanced helper function
 async function checkForResponsesImmediately(userId, emailId, jobId) {
