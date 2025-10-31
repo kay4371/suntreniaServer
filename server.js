@@ -1893,6 +1893,7 @@ app.get('/auth/fallback', (req, res) => {
     `);
   });
 // OAuth callback route - SURGICAL UPDATE
+// OAuth callback route - FIXED VERSION
 app.get('/auth/google/callback', async (req, res) => {
     console.log('\n🔵 ============ OAUTH CALLBACK HIT ============');
     const { code, state, error } = req.query;
@@ -1943,62 +1944,69 @@ app.get('/auth/google/callback', async (req, res) => {
       }
       
       const tokens = await tokenResponse.json();
+      console.log('✅ Token exchange successful');
       
       // Get user's email
       const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
         headers: { Authorization: `Bearer ${tokens.access_token}` }
       });
+      
+      if (!userInfoResponse.ok) {
+        throw new Error('Failed to get user info');
+      }
+      
       const userInfo = await userInfoResponse.json();
+      console.log('📧 User email from Google:', userInfo.email);
       
       // 🔥 STORE AUTHORIZATION IN DATABASE
       mongoClient = new MongoClient(process.env.MONGODB_URI);
       await mongoClient.connect();
       const db = mongoClient.db('olukayode_sage');
       
+      const authData = {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        userEmail: userInfo.email, // ✅ Store the actual email
+        updatedAt: new Date(),
+        usePersonalEmail: true,
+        authorizedAt: new Date(),
+        isAuthorized: true
+      };
+      
+      console.log('💾 Storing auth data:', authData);
+      
       await db.collection('user_gmail_tokens').updateOne(
         { userId },
-        { 
-          $set: { 
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
-            expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-            userEmail: userInfo.email,
-            updatedAt: new Date(),
-            usePersonalEmail: true,
-            authorizedAt: new Date(),
-            isAuthorized: true  // 👈 EXPLICIT FLAG
-          } 
-        },
+        { $set: authData },
         { upsert: true }
       );
       
       await mongoClient.close();
       
-      console.log('✅ Authorization stored in database');
+      console.log('✅ Authorization stored in database with email:', userInfo.email);
       
       // 🔥 EMIT WEBSOCKET EVENT: USER AUTHORIZED
-      // In /auth/google/callback - add email to WebSocket payload
-        const wsPayload = {
-            type: 'user_authorized',
-            userId,
-            jobId,
-            emailId,
-            responseId,
-            message: 'User has been authorized successfully',
-            userEmail: userInfo.email, // 👈 ADD THIS
-            timestamp: new Date().toISOString()
-        };
+      const wsPayload = {
+        type: 'user_authorized',
+        userId,
+        jobId,
+        emailId,
+        responseId,
+        message: 'User has been authorized successfully',
+        userEmail: userInfo.email,
+        timestamp: new Date().toISOString()
+      };
       
-        console.log('🚀 Sending WebSocket notification...');
-        broadcastToClients(wsPayload);
-      
-      console.log('📢 WebSocket notification sent: USER AUTHORIZED');
+      console.log('🚀 Sending WebSocket notification...');
+      broadcastToClients(wsPayload);
       
       // Show success page
       res.send(getSuccessHTML());
       
     } catch (error) {
       console.error('❌ OAuth callback error:', error);
+      console.error('❌ Error details:', error.message);
       
       if (mongoClient) {
         await mongoClient.close();
@@ -2010,6 +2018,7 @@ app.get('/auth/google/callback', async (req, res) => {
   // Route for using company email - SURGICAL UPDATE
 // Route for using company email - SURGICAL UPDATE
 // Route for using company email - FIXED WITH EMAIL
+// Route for using company email - FIXED VERSION
 app.get('/auth/use-company-email', async (req, res) => {
     const { userId, jobId, emailId, responseId } = req.query;
     
@@ -2022,24 +2031,30 @@ app.get('/auth/use-company-email', async (req, res) => {
       await mongoClient.connect();
       const db = mongoClient.db('olukayode_sage');
       
+      // Use the actual email from environment variables
+      const companyEmail = process.env.COMPANY_EMAIL || process.env.EMAIL_USER;
+      console.log('📧 Storing company email:', companyEmail);
+      
       // 🔥 STORE AUTHORIZATION (COMPANY EMAIL MODE) WITH EMAIL
+      const authData = {
+        usePersonalEmail: false,
+        userEmail: companyEmail, // ✅ Store the actual email
+        updatedAt: new Date(),
+        authorizedAt: new Date(),
+        isAuthorized: true
+      };
+      
+      console.log('💾 Storing auth data:', authData);
+      
       await db.collection('user_gmail_tokens').updateOne(
         { userId },
-        { 
-          $set: { 
-            usePersonalEmail: false,
-            userEmail: process.env.COMPANY_EMAIL || process.env.EMAIL_USER, // Use company email
-            updatedAt: new Date(),
-            authorizedAt: new Date(),
-            isAuthorized: true
-          } 
-        },
+        { $set: authData },
         { upsert: true }
       );
       
       await mongoClient.close();
       
-      console.log('✅ Company email authorization stored with email:', process.env.EMAIL_USER);
+      console.log('✅ Company email authorization stored with email:', companyEmail);
       
       // 🔥 EMIT WEBSOCKET EVENT: USER AUTHORIZED
       const wsPayload = {
@@ -2049,22 +2064,13 @@ app.get('/auth/use-company-email', async (req, res) => {
         emailId,
         responseId,
         message: 'User has been authorized (company email)',
-        userEmail: process.env.EMAIL_USER, // Include email in payload
+        userEmail: companyEmail,
         timestamp: new Date().toISOString()
       };
       
-    //   wss.clients.forEach(client => {
-    //     if (client.readyState === WebSocket.OPEN) {
-    //       client.send(JSON.stringify(wsPayload));
-    //     }
-    //   });
+      console.log('🚀 Sending WebSocket notification...');
+      broadcastToClients(wsPayload);
       
-      
-        // ✅ WITH THIS NEW CODE:
-    console.log('🚀 Sending WebSocket notification...');
-    broadcastToClients(wsPayload);
-    console.log('📢 WebSocket notification sent: USER AUTHORIZED');
-
       // Show success page
       res.send(getSuccessHTML());
       
@@ -2078,7 +2084,6 @@ app.get('/auth/use-company-email', async (req, res) => {
       res.status(500).send('An error occurred. Please try again.');
     }
   });
-
   async function checkIfUserAuthorized(userId) {
     let client;
     try {
@@ -2126,7 +2131,41 @@ app.get('/auth/use-company-email', async (req, res) => {
     }
   }
   
-
+// Add this endpoint for frontend to check authorization status
+app.get('/check-user-auth', async (req, res) => {
+    const { userId } = req.query;
+    
+    console.log('🔍 Checking user auth for:', userId);
+    
+    try {
+      const client = new MongoClient(process.env.MONGODB_URI);
+      await client.connect();
+      
+      const db = client.db('olukayode_sage');
+      const userAuth = await db.collection('user_gmail_tokens').findOne({ userId });
+      
+      await client.close();
+      
+      const authorized = userAuth && userAuth.isAuthorized;
+      
+      console.log('📋 Auth check result:', {
+        authorized,
+        userEmail: userAuth?.userEmail,
+        usePersonalEmail: userAuth?.usePersonalEmail
+      });
+      
+      res.json({
+        authorized,
+        userEmail: userAuth?.userEmail,
+        usePersonalEmail: userAuth?.usePersonalEmail,
+        authorizedAt: userAuth?.authorizedAt
+      });
+      
+    } catch (error) {
+      console.error('❌ Error checking user auth:', error);
+      res.status(500).json({ error: 'Failed to check authorization' });
+    }
+  });
 app.get('/test-websocket', (req, res) => {
   const { userId, message } = req.query;
   
