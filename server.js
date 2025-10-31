@@ -32,6 +32,36 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
+
+function broadcastToClients(payload) {
+  console.log('📢 Broadcasting WebSocket message:', payload);
+  console.log(`📊 Total clients to broadcast to: ${wss.clients.size}`);
+  
+  let sentCount = 0;
+  
+  wss.clients.forEach((client, index) => {
+    console.log(`🔍 Client ${index + 1}:`, {
+      readyState: client.readyState,
+      WebSocket: {
+        OPEN: WebSocket.OPEN,
+        CONNECTING: WebSocket.CONNECTING,
+        CLOSING: WebSocket.CLOSING,
+        CLOSED: WebSocket.CLOSED
+      }
+    });
+    
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(payload));
+      sentCount++;
+      console.log(`✅ Message sent to client ${index + 1}`);
+    } else {
+      console.log(`❌ Client ${index + 1} not ready (state: ${client.readyState})`);
+    }
+  });
+  
+  console.log(`📨 Successfully sent to ${sentCount} out of ${wss.clients.size} clients`);
+}
+
 wss.on('connection', (ws, req) => {
   console.log('🔌 WS client connected');
 
@@ -444,13 +474,17 @@ app.get('/handle-response', async (req, res) => {
         timestamp: new Date().toISOString()
       };
   
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(payload));
-        }
-      });
-      console.log('📢 WebSocket notification sent to all connected clients');
+    //   wss.clients.forEach(client => {
+    //     if (client.readyState === WebSocket.OPEN) {
+    //       client.send(JSON.stringify(payload));
+    //     }
+    //   });
+    //   console.log('📢 WebSocket notification sent to all connected clients');
   
+    // ✅ WITH THIS NEW CODE:
+    console.log('🚀 Sending WebSocket notification...');
+    broadcastToClients(wsPayload);
+
       await mongoClient.close();
       console.log('✅ MongoDB connection closed');
   
@@ -1942,15 +1976,17 @@ app.get('/auth/google/callback', async (req, res) => {
       console.log('✅ Authorization stored in database');
       
       // 🔥 EMIT WEBSOCKET EVENT: USER AUTHORIZED
-      const wsPayload = {
-        type: 'user_authorized',
-        userId,
-        jobId,
-        emailId,
-        responseId,
-        message: 'User has been authorized successfully',
-        timestamp: new Date().toISOString()
-      };
+      // In /auth/google/callback - add email to WebSocket payload
+        const wsPayload = {
+            type: 'user_authorized',
+            userId,
+            jobId,
+            emailId,
+            responseId,
+            message: 'User has been authorized successfully',
+            userEmail: userInfo.email, // 👈 ADD THIS
+            timestamp: new Date().toISOString()
+        };
       
       wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
@@ -1975,6 +2011,7 @@ app.get('/auth/google/callback', async (req, res) => {
   });
   // Route for using company email - SURGICAL UPDATE
 // Route for using company email - SURGICAL UPDATE
+// Route for using company email - FIXED WITH EMAIL
 app.get('/auth/use-company-email', async (req, res) => {
     const { userId, jobId, emailId, responseId } = req.query;
     
@@ -1987,15 +2024,16 @@ app.get('/auth/use-company-email', async (req, res) => {
       await mongoClient.connect();
       const db = mongoClient.db('olukayode_sage');
       
-      // 🔥 STORE AUTHORIZATION (COMPANY EMAIL MODE)
+      // 🔥 STORE AUTHORIZATION (COMPANY EMAIL MODE) WITH EMAIL
       await db.collection('user_gmail_tokens').updateOne(
         { userId },
         { 
           $set: { 
             usePersonalEmail: false,
+            userEmail: process.env.COMPANY_EMAIL || process.env.EMAIL_USER, // Use company email
             updatedAt: new Date(),
             authorizedAt: new Date(),
-            isAuthorized: true  // 👈 EXPLICIT FLAG
+            isAuthorized: true
           } 
         },
         { upsert: true }
@@ -2003,7 +2041,7 @@ app.get('/auth/use-company-email', async (req, res) => {
       
       await mongoClient.close();
       
-      console.log('✅ Company email authorization stored');
+      console.log('✅ Company email authorization stored with email:', process.env.EMAIL_USER);
       
       // 🔥 EMIT WEBSOCKET EVENT: USER AUTHORIZED
       const wsPayload = {
@@ -2013,17 +2051,21 @@ app.get('/auth/use-company-email', async (req, res) => {
         emailId,
         responseId,
         message: 'User has been authorized (company email)',
+        userEmail: process.env.EMAIL_USER, // Include email in payload
         timestamp: new Date().toISOString()
       };
       
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(wsPayload));
-        }
-      });
+    //   wss.clients.forEach(client => {
+    //     if (client.readyState === WebSocket.OPEN) {
+    //       client.send(JSON.stringify(wsPayload));
+    //     }
+    //   });
       
       console.log('📢 WebSocket notification sent: USER AUTHORIZED');
-      
+            // ✅ WITH THIS NEW CODE:
+        console.log('🚀 Sending WebSocket notification...');
+        broadcastToClients(wsPayload);
+
       // Show success page
       res.send(getSuccessHTML());
       
@@ -2037,8 +2079,25 @@ app.get('/auth/use-company-email', async (req, res) => {
       res.status(500).send('An error occurred. Please try again.');
     }
   });
-
-
+app.get('/test-websocket', (req, res) => {
+  const { userId, message } = req.query;
+  
+  const testPayload = {
+    type: 'test_message',
+    userId: userId || 'test-user',
+    message: message || 'Test WebSocket message',
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🧪 Sending test WebSocket message...');
+  broadcastToClients(testPayload); // 👈 CALL THE FUNCTION HERE
+  
+  res.json({
+    success: true,
+    message: 'Test WebSocket message sent',
+    payload: testPayload
+  });
+});
 // Server startup with comprehensive logging
 server.listen(PORT, async () => {
   console.log(`\n🚀 Server starting...`);
