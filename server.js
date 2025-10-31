@@ -482,8 +482,9 @@ app.get('/handle-response', async (req, res) => {
     //   console.log('📢 WebSocket notification sent to all connected clients');
   
     // ✅ WITH THIS NEW CODE:
-    console.log('🚀 Sending WebSocket notification...');
-    broadcastToClients(wsPayload);
+        // ✅ CORRECT - use the payload variable that you defined
+        console.log('🚀 Sending WebSocket notification...');
+        broadcastToClients(payload); // ✅ Use the correct variable name
 
       await mongoClient.close();
       console.log('✅ MongoDB connection closed');
@@ -1988,11 +1989,8 @@ app.get('/auth/google/callback', async (req, res) => {
             timestamp: new Date().toISOString()
         };
       
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(wsPayload));
-        }
-      });
+        console.log('🚀 Sending WebSocket notification...');
+        broadcastToClients(wsPayload);
       
       console.log('📢 WebSocket notification sent: USER AUTHORIZED');
       
@@ -2061,11 +2059,12 @@ app.get('/auth/use-company-email', async (req, res) => {
     //     }
     //   });
       
-      console.log('📢 WebSocket notification sent: USER AUTHORIZED');
-            // ✅ WITH THIS NEW CODE:
-        console.log('🚀 Sending WebSocket notification...');
-        broadcastToClients(wsPayload);
-
+      
+        // ✅ WITH THIS NEW CODE:
+    console.log('🚀 Sending WebSocket notification...');
+    broadcastToClients(wsPayload);
+    console.log('📢 WebSocket notification sent: USER AUTHORIZED');
+    
       // Show success page
       res.send(getSuccessHTML());
       
