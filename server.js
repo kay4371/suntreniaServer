@@ -2064,7 +2064,7 @@ app.get('/auth/use-company-email', async (req, res) => {
     console.log('🚀 Sending WebSocket notification...');
     broadcastToClients(wsPayload);
     console.log('📢 WebSocket notification sent: USER AUTHORIZED');
-    
+
       // Show success page
       res.send(getSuccessHTML());
       
@@ -2078,6 +2078,55 @@ app.get('/auth/use-company-email', async (req, res) => {
       res.status(500).send('An error occurred. Please try again.');
     }
   });
+
+  async function checkIfUserAuthorized(userId) {
+    let client;
+    try {
+      client = new MongoClient(process.env.MONGODB_URI);
+      await client.connect();
+      console.log('🔍 Checking authorization for user:', userId);
+      
+      const db = client.db('olukayode_sage');
+      const userAuth = await db.collection('user_gmail_tokens').findOne({ userId });
+  
+      // No record at all — unauthorized
+      if (!userAuth) {
+        console.log(`❌ No authorization record for user ${userId}`);
+        return false;
+      }
+  
+      // Check explicit flag
+      if (!userAuth.isAuthorized) {
+        console.log(`❌ User ${userId} not authorized`);
+        return false;
+      }
+  
+      // If using company email
+      if (userAuth.usePersonalEmail === false) {
+        console.log(`✅ User ${userId} authorized (company email)`);
+        return true;
+      }
+  
+      // If using personal Gmail
+      if (userAuth.usePersonalEmail === true && userAuth.accessToken) {
+        console.log(`✅ User ${userId} authorized (personal Gmail)`);
+        return true;
+      }
+  
+      console.log(`⚠️ Incomplete authorization for user ${userId}`);
+      return false;
+  
+    } catch (error) {
+      console.error('❌ Error checking authorization:', error);
+      throw error;
+    } finally {
+      if (client) {
+        await client.close();
+      }
+    }
+  }
+  
+
 app.get('/test-websocket', (req, res) => {
   const { userId, message } = req.query;
   
