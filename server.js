@@ -1857,8 +1857,7 @@ app.get('/auth/fallback', (req, res) => {
       </html>
     `);
   });
-
-  // OAuth callback route - SURGICAL UPDATE
+// OAuth callback route - SURGICAL UPDATE
 app.get('/auth/google/callback', async (req, res) => {
     console.log('\n🔵 ============ OAUTH CALLBACK HIT ============');
     const { code, state, error } = req.query;
@@ -1974,9 +1973,8 @@ app.get('/auth/google/callback', async (req, res) => {
       res.status(500).send('Authorization failed. Please try again.');
     }
   });
-  // OAuth callback route
-
   // Route for using company email - SURGICAL UPDATE
+// Route for using company email - SURGICAL UPDATE
 app.get('/auth/use-company-email', async (req, res) => {
     const { userId, jobId, emailId, responseId } = req.query;
     
@@ -2039,7 +2037,6 @@ app.get('/auth/use-company-email', async (req, res) => {
       res.status(500).send('An error occurred. Please try again.');
     }
   });
-  // Route for using company email
 
 
 // Server startup with comprehensive logging
@@ -2057,4 +2054,3 @@ server.listen(PORT, async () => {
   console.log(`\n✅ Server running on http://localhost:${PORT}`);
   console.log('📊 Logs available in Render Dashboard → Your Service → Logs');
 }); 
-
