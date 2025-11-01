@@ -153,32 +153,19 @@ console.log("📧 Password length:", EMAIL_PASSWORD?.length);
 // ============================================
 // SMTP Configuration - FIXED
 // ============================================
-// const transporter = nodemailer.createTransport({
-//   host: process.env.SMTP_HOST || "smtp.gmail.com",
-//   port: parseInt(process.env.SMTP_PORT) || 465,
-//   secure: true,
-//   auth: {
-//     user: EMAIL_USER,
-//     pass: EMAIL_PASSWORD,
-//   },
-//   tls: {
-//     rejectUnauthorized: false
-//   }
-// });
-
-
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      type: 'OAuth2',
-      user: EMAIL_USER,
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-      accessToken: process.env.GMAIL_ACCESS_TOKEN
-    }
-  });
-  
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: parseInt(process.env.SMTP_PORT) || 465,
+  secure: true,
+  auth: {
+    user: EMAIL_USER,
+    pass: EMAIL_PASSWORD,
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
+
 // Test SMTP connection on startup (non-blocking)
 transporter.verify((error, success) => {
   if (error) {
