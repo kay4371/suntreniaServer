@@ -14,24 +14,41 @@ const app = express();
 const server = http.createServer(app);
 
 // ✅ WebSocket server with noServer option
-const wss = new WebSocket.Server({ noServer: true });
+const wss = new WebSocket.Server({ server });
 
 const clients = new Map(); // userId → ws
 
 // ✅ Handle WebSocket upgrade BEFORE middleware
-server.on('upgrade', (request, socket, head) => {
-  console.log('🔄 WebSocket upgrade request received from:', request.headers.origin);
+// server.on('upgrade', (request, socket, head) => {
+//   console.log('🔄 WebSocket upgrade request received from:', request.headers.origin);
   
-  try {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request);
+//   try {
+//     wss.handleUpgrade(request, socket, head, (ws) => {
+//       wss.emit('connection', ws, request);
+//     });
+//   } catch (error) {
+//     console.error('❌ WebSocket upgrade error:', error);
+//     socket.destroy();
+//   }
+// });
+wss.on('connection', (ws, req) => {
+    console.log('🔌 WS client connected');
+  
+    // Optionally get userId from query (?userId=123)
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const userId = url.searchParams.get('userId');
+    if (userId) {
+      clients.set(userId, ws);
+      console.log(`🆔 Registered client for userId: ${userId}`);
+    }
+  
+    ws.send(JSON.stringify({ message: 'Welcome!' }));
+  
+    ws.on('close', () => {
+      if (userId) clients.delete(userId);
+      console.log(`❌ Client disconnected${userId ? ` (${userId})` : ''}`);
     });
-  } catch (error) {
-    console.error('❌ WebSocket upgrade error:', error);
-    socket.destroy();
-  }
-});
-
+  });
 // ✅ Broadcast function
 function broadcastToClients(payload) {
   console.log('📢 Broadcasting WebSocket message:', payload);
@@ -402,73 +419,140 @@ app.get('/api/user-responses', async (req, res) => {
 });
 
 // Enhanced handle-response
-app.get('/handle-response', async (req, res) => {
-  const { 
-    response, 
-    emailId, 
-    jobId, 
-    userId, 
-    emailSubject = 'Not provided', 
-    companyName = 'Unknown Company', 
-    jobTitle = 'Unknown Position',
-    applicationStatus = 'pending',
-    emailDate = new Date().toISOString(),
-    emailFrom = 'Unknown Sender'
-  } = req.query;
+// app.get('/handle-response', async (req, res) => {
+//   const { 
+//     response, 
+//     emailId, 
+//     jobId, 
+//     userId, 
+//     emailSubject = 'Not provided', 
+//     companyName = 'Unknown Company', 
+//     jobTitle = 'Unknown Position',
+//     applicationStatus = 'pending',
+//     emailDate = new Date().toISOString(),
+//     emailFrom = 'Unknown Sender'
+//   } = req.query;
 
-  const trimmedUserId = (userId || '').trim();
-  const trimmedResponse = (response || '').trim();
-  const trimmedEmailId = (emailId || '').trim();
-  const trimmedJobId = (jobId || '').trim();
-  const trimmedEmailSubject = (emailSubject || '').trim();
-  const trimmedCompanyName = (companyName || '').trim();
-  const trimmedJobTitle = (jobTitle || '').trim();
+//   const trimmedUserId = (userId || '').trim();
+//   const trimmedResponse = (response || '').trim();
+//   const trimmedEmailId = (emailId || '').trim();
+//   const trimmedJobId = (jobId || '').trim();
+//   const trimmedEmailSubject = (emailSubject || '').trim();
+//   const trimmedCompanyName = (companyName || '').trim();
+//   const trimmedJobTitle = (jobTitle || '').trim();
 
-  console.log('\n🎯 HANDLE-RESPONSE CALLED');
-  console.log('📩 Response:', trimmedResponse, 'User:', trimmedUserId);
+//   console.log('\n🎯 HANDLE-RESPONSE CALLED');
+//   console.log('📩 Response:', trimmedResponse, 'User:', trimmedUserId);
 
-  if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
-    console.log('❌ Missing required parameters');
-    return res.status(400).send('Missing required parameters');
-  }
+//   if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
+//     console.log('❌ Missing required parameters');
+//     return res.status(400).send('Missing required parameters');
+//   }
 
-  let mongoClient;
+//   let mongoClient;
 
-  try {
-    console.log('🗄️ Connecting to MongoDB...');
-    mongoClient = new MongoClient(process.env.MONGODB_URI);
-    await mongoClient.connect();
-    console.log('✅ Connected to MongoDB');
+//   try {
+//     console.log('🗄️ Connecting to MongoDB...');
+//     mongoClient = new MongoClient(process.env.MONGODB_URI);
+//     await mongoClient.connect();
+//     console.log('✅ Connected to MongoDB');
 
-    const db = mongoClient.db('olukayode_sage');
+//     const db = mongoClient.db('olukayode_sage');
 
-    // Store the response
-    console.log('💾 Storing response in database...');
-    const responseData = {
-      userId: trimmedUserId,
-      response: trimmedResponse,
-      emailId: trimmedEmailId,
-      jobId: trimmedJobId,
-      emailSubject: trimmedEmailSubject,
-      companyName: trimmedCompanyName,
-      jobTitle: trimmedJobTitle,
-      applicationStatus: applicationStatus,
-      emailDate: emailDate,
-      emailFrom: emailFrom,
-      timestamp: new Date(),
-      processed: false
-    };
+//     // Store the response
+//     console.log('💾 Storing response in database...');
+//     const responseData = {
+//       userId: trimmedUserId,
+//       response: trimmedResponse,
+//       emailId: trimmedEmailId,
+//       jobId: trimmedJobId,
+//       emailSubject: trimmedEmailSubject,
+//       companyName: trimmedCompanyName,
+//       jobTitle: trimmedJobTitle,
+//       applicationStatus: applicationStatus,
+//       emailDate: emailDate,
+//       emailFrom: emailFrom,
+//       timestamp: new Date(),
+//       processed: false
+//     };
 
-    const insertResult = await db.collection('user_application_response').insertOne(responseData);
-    console.log('✅ Response stored with ID:', insertResult.insertedId);
+//     const insertResult = await db.collection('user_application_response').insertOne(responseData);
+//     console.log('✅ Response stored with ID:', insertResult.insertedId);
 
-    // Determine response type
-    const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-    const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
+//     // Determine response type
+//     const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
+//     const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
     
-    // WebSocket notification
+//     // WebSocket notification
+//     const payload = {
+//       type: trimmedResponse.toLowerCase(),
+//       userId: trimmedUserId,
+//       jobId: trimmedJobId,
+//       emailId: trimmedEmailId,
+//       responseId: insertResult.insertedId.toString(),
+//       message: `User selected "${trimmedResponse}"`,
+//       companyName: trimmedCompanyName,
+//       jobTitle: trimmedJobTitle,
+//       timestamp: new Date().toISOString()
+//     };
+
+//     console.log('🚀 Sending WebSocket notification...');
+//     broadcastToClients(payload);
+
+//     await mongoClient.close();
+//     console.log('✅ MongoDB connection closed');
+
+//     // Send appropriate HTML response
+//     if (isPositive) {
+//       // Check if user is already authorized
+//       const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
+      
+//       if (isAuthorized) {
+//         console.log('✅ User already authorized - showing proceeding page');
+//         res.send(getAlreadyAuthorizedHTML(trimmedUserId, trimmedCompanyName, trimmedJobTitle));
+//       } else {
+//         console.log('❌ User needs authorization - showing auth options');
+//         res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
+//       }
+//     } else {
+//       // Negative response
+//       console.log('❌ User declined - showing declined page');
+//       res.send(getDeclinedHTML());
+//     }
+    
+//   } catch (err) {
+//     console.error('❌ ERROR in handle-response:', err);
+//     console.error('❌ Error stack:', err.stack);
+    
+//     if (mongoClient) {
+//       await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+//     }
+    
+//     res.status(500).send(
+//       `<html>
+//         <body>
+//           <h1>Server Error</h1>
+//           <p>Please try again later. If the problem persists, contact support.</p>
+//           <p><small>Error: ${err.message}</small></p>
+//         </body>
+//       </html>`
+//     );
+//   }
+// });
+///////////////////////////////////////////////////////////////////
+// Determine response type
+// Determine response type
+const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
+const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
+
+// ✅ SMART FIX: Check authorization first
+if (isPositive) {
+  const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
+  
+  if (isAuthorized) {
+    // User is already authorized - send "proceed" WebSocket to nudge frontend
     const payload = {
-      type: trimmedResponse.toLowerCase(),
+      type: 'proceed',
       userId: trimmedUserId,
       jobId: trimmedJobId,
       emailId: trimmedEmailId,
@@ -478,51 +562,50 @@ app.get('/handle-response', async (req, res) => {
       jobTitle: trimmedJobTitle,
       timestamp: new Date().toISOString()
     };
-
-    console.log('🚀 Sending WebSocket notification...');
+    
+    console.log('🚀 Sending WebSocket nudge (authorized user) - frontend will verify with DB');
     broadcastToClients(payload);
-
-    await mongoClient.close();
-    console.log('✅ MongoDB connection closed');
-
-    // Send appropriate HTML response
-    if (isPositive) {
-      // Check if user is already authorized
-      const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
-      
-      if (isAuthorized) {
-        console.log('✅ User already authorized - showing proceeding page');
-        res.send(getAlreadyAuthorizedHTML(trimmedUserId, trimmedCompanyName, trimmedJobTitle));
-      } else {
-        console.log('❌ User needs authorization - showing auth options');
-        res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
-      }
-    } else {
-      // Negative response
-      console.log('❌ User declined - showing declined page');
-      res.send(getDeclinedHTML());
-    }
-    
-  } catch (err) {
-    console.error('❌ ERROR in handle-response:', err);
-    console.error('❌ Error stack:', err.stack);
-    
-    if (mongoClient) {
-      await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
-    }
-    
-    res.status(500).send(
-      `<html>
-        <body>
-          <h1>Server Error</h1>
-          <p>Please try again later. If the problem persists, contact support.</p>
-          <p><small>Error: ${err.message}</small></p>
-        </body>
-      </html>`
-    );
+  } else {
+    console.log('⏸️ User needs authorization - no WebSocket sent yet');
+    console.log('📌 WebSocket will be sent from OAuth callback after authorization');
+    // Don't send WebSocket - will be sent as "user_authorized" after OAuth
   }
-});
+} else {
+  // Negative response - always send WebSocket nudge
+  const payload = {
+    type: 'decline',
+    userId: trimmedUserId,
+    jobId: trimmedJobId,
+    emailId: trimmedEmailId,
+    responseId: insertResult.insertedId.toString(),
+    message: `User declined application`,
+    companyName: trimmedCompanyName,
+    jobTitle: trimmedJobTitle,
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🚀 Sending WebSocket nudge (decline)');
+  broadcastToClients(payload);
+}
 
+await mongoClient.close();
+console.log('✅ MongoDB connection closed');
+
+// Send appropriate HTML response
+if (isPositive) {
+  const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
+  
+  if (isAuthorized) {
+    console.log('✅ User already authorized - showing proceeding page');
+    res.send(getAlreadyAuthorizedHTML(trimmedUserId, trimmedCompanyName, trimmedJobTitle));
+  } else {
+    console.log('❌ User needs authorization - showing auth options');
+    res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
+  }
+} else {
+  console.log('❌ User declined - showing declined page');
+  res.send(getDeclinedHTML());
+}
 function getDeclinedHTML() {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1993,18 +2076,34 @@ app.get('/auth/google/callback', async (req, res) => {
     
     console.log('✅ Authorization stored in database with email:', userInfo.email);
     
-    // Emit WebSocket event
-    const wsPayload = {
-      type: 'user_authorized',
-      userId,
-      jobId,
-      emailId,
-      responseId,
-      message: 'User has been authorized successfully',
-      userEmail: userInfo.email,
-      timestamp: new Date().toISOString()
-    };
-    
+    // // Emit WebSocket event
+    // const wsPayload = {
+    //   type: 'user_authorized',
+    //   userId,
+    //   jobId,
+    //   emailId,
+    //   responseId,
+    //   message: 'User has been authorized successfully',
+    //   userEmail: userInfo.email,
+    //   timestamp: new Date().toISOString()
+    // };
+    // Get the original response data to include company/job info
+            const responseData = await db.collection('user_application_response')
+            .findOne({ _id: new ObjectId(responseId) });
+        
+        // Emit WebSocket event
+        const wsPayload = {
+            type: 'user_authorized',
+            userId,
+            jobId,
+            emailId,
+            responseId,
+            message: 'User has been authorized (company email)',
+            userEmail: companyEmail,
+            companyName: responseData?.companyName || 'Unknown Company',
+            jobTitle: responseData?.jobTitle || 'Unknown Position',
+            timestamp: new Date().toISOString()
+        };
     console.log('🚀 Sending WebSocket notification...');
     broadcastToClients(wsPayload);
     
