@@ -1,4 +1,3 @@
-
 const WebSocket = require('ws');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
@@ -1601,8 +1600,7 @@ function getSuccessHTML() {
   
 
 
-
-app.get('/auth/google', (req, res) => {
+  app.get('/auth/google', (req, res) => {
     console.log('\n🔵 ============ /auth/google ROUTE HIT ============');
     console.log('🔵 Timestamp:', new Date().toISOString());
     console.log('🔵 Full URL:', req.url);
@@ -1754,12 +1752,12 @@ app.get('/auth/google', (req, res) => {
       console.log('🔵 State data:', JSON.stringify(stateData));
       console.log('🔵 Encoded state:', state);
       
-      // Build Google OAuth URL
+      // ⭐ KEY CHANGE: Added userinfo.email scope
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${encodeURIComponent(process.env.GOOGLE_CLIENT_ID)}&` +
         `redirect_uri=${encodeURIComponent(process.env.GOOGLE_REDIRECT_URI)}&` +
         `response_type=code&` +
-        `scope=${encodeURIComponent('https://www.googleapis.com/auth/gmail.send')}&` +
+        `scope=${encodeURIComponent('https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email')}&` +
         `access_type=offline&` +
         `prompt=consent&` +
         `state=${encodeURIComponent(state)}`;
@@ -1837,6 +1835,7 @@ app.get('/auth/google', (req, res) => {
     }
   });
 
+
 // 👇 ADD THE TEST ROUTE RIGHT HERE 👇
 app.get('/test-auth-route', (req, res) => {
     console.log('✅ Test route working!');
@@ -1894,6 +1893,7 @@ app.get('/auth/fallback', (req, res) => {
   });
 // OAuth callback route - SURGICAL UPDATE
 // OAuth callback route - FIXED VERSION
+// ============================================
 app.get('/auth/google/callback', async (req, res) => {
     console.log('\n🔵 ============ OAUTH CALLBACK HIT ============');
     const { code, state, error } = req.query;
@@ -1945,17 +1945,41 @@ app.get('/auth/google/callback', async (req, res) => {
       
       const tokens = await tokenResponse.json();
       console.log('✅ Token exchange successful');
-      
-      // Get user's email
-      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { Authorization: `Bearer ${tokens.access_token}` }
+      // ⭐ ADDED: More detailed token logging
+      console.log('🔑 Token info:', {
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+        expiresIn: tokens.expires_in,
+        scope: tokens.scope
       });
       
+      // ⭐ ADDED: Log before fetching user info
+      console.log('📧 Fetching user info from Google...');
+      
+      // ⭐ ENHANCED: Better error handling for user info fetch
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { 
+          Authorization: `Bearer ${tokens.access_token}`,
+          Accept: 'application/json'
+        }
+      });
+      
+      console.log('📊 User info response status:', userInfoResponse.status);
+      
       if (!userInfoResponse.ok) {
-        throw new Error('Failed to get user info');
+        const errorText = await userInfoResponse.text();
+        console.error('❌ User info error response:', errorText);
+        throw new Error(`Failed to get user info: ${userInfoResponse.status} - ${errorText}`);
       }
       
       const userInfo = await userInfoResponse.json();
+      
+      // ⭐ ADDED: Validate we got an email
+      if (!userInfo.email) {
+        console.error('❌ No email in user info:', userInfo);
+        throw new Error('Google did not return an email address');
+      }
+      
       console.log('📧 User email from Google:', userInfo.email);
       
       // 🔥 STORE AUTHORIZATION IN DATABASE
@@ -1967,7 +1991,7 @@ app.get('/auth/google/callback', async (req, res) => {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-        userEmail: userInfo.email, // ✅ Store the actual email
+        userEmail: userInfo.email,
         updatedAt: new Date(),
         usePersonalEmail: true,
         authorizedAt: new Date(),
