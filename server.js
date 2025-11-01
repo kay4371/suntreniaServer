@@ -210,7 +210,6 @@ async function testImapConnection() {
   }
 }
 
-
 // Test route with environment info
 app.get('/', (req, res) => {
   const envInfo = {
@@ -402,7 +401,6 @@ app.get('/api/user-responses', async (req, res) => {
   }
 });
 
-
 app.get('/handle-response', async (req, res) => {
   const { 
     response, 
@@ -467,28 +465,54 @@ app.get('/handle-response', async (req, res) => {
     const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
     const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
     
-    // WebSocket notification
-    const payload = {
-      type: trimmedResponse.toLowerCase(),
-      userId: trimmedUserId,
-      jobId: trimmedJobId,
-      emailId: trimmedEmailId,
-      responseId: insertResult.insertedId.toString(),
-      message: `User selected "${trimmedResponse}"`,
-      companyName: trimmedCompanyName,
-      jobTitle: trimmedJobTitle,
-      timestamp: new Date().toISOString()
-    };
-
-    console.log('🚀 Sending WebSocket notification...');
-    broadcastToClients(payload);
+    // ✅ SMART FIX: Check authorization first
+    if (isPositive) {
+      const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
+      
+      if (isAuthorized) {
+        // User is already authorized - send "proceed" WebSocket to nudge frontend
+        const payload = {
+          type: 'proceed',
+          userId: trimmedUserId,
+          jobId: trimmedJobId,
+          emailId: trimmedEmailId,
+          responseId: insertResult.insertedId.toString(),
+          message: `User selected "${trimmedResponse}"`,
+          companyName: trimmedCompanyName,
+          jobTitle: trimmedJobTitle,
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log('🚀 Sending WebSocket nudge (authorized user) - frontend will verify with DB');
+        broadcastToClients(payload);
+      } else {
+        console.log('⏸️ User needs authorization - no WebSocket sent yet');
+        console.log('🔌 WebSocket will be sent from OAuth callback after authorization');
+        // Don't send WebSocket - will be sent as "user_authorized" after OAuth
+      }
+    } else {
+      // Negative response - always send WebSocket nudge
+      const payload = {
+        type: 'decline',
+        userId: trimmedUserId,
+        jobId: trimmedJobId,
+        emailId: trimmedEmailId,
+        responseId: insertResult.insertedId.toString(),
+        message: `User declined application`,
+        companyName: trimmedCompanyName,
+        jobTitle: trimmedJobTitle,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('🚀 Sending WebSocket nudge (decline)');
+      broadcastToClients(payload);
+    }
 
     await mongoClient.close();
     console.log('✅ MongoDB connection closed');
 
     // Send appropriate HTML response
     if (isPositive) {
-      // Check if user is already authorized
       const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
       
       if (isAuthorized) {
@@ -499,7 +523,6 @@ app.get('/handle-response', async (req, res) => {
         res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
       }
     } else {
-      // Negative response
       console.log('❌ User declined - showing declined page');
       res.send(getDeclinedHTML());
     }
@@ -523,73 +546,7 @@ app.get('/handle-response', async (req, res) => {
     );
   }
 });
-///////////////////////////////////////////////////////////////////
-// Determine response type
-// Determine response type
-const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
 
-// ✅ SMART FIX: Check authorization first
-if (isPositive) {
-  const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
-  
-  if (isAuthorized) {
-    // User is already authorized - send "proceed" WebSocket to nudge frontend
-    const payload = {
-      type: 'proceed',
-      userId: trimmedUserId,
-      jobId: trimmedJobId,
-      emailId: trimmedEmailId,
-      responseId: insertResult.insertedId.toString(),
-      message: `User selected "${trimmedResponse}"`,
-      companyName: trimmedCompanyName,
-      jobTitle: trimmedJobTitle,
-      timestamp: new Date().toISOString()
-    };
-    
-    console.log('🚀 Sending WebSocket nudge (authorized user) - frontend will verify with DB');
-    broadcastToClients(payload);
-  } else {
-    console.log('⏸️ User needs authorization - no WebSocket sent yet');
-    console.log('📌 WebSocket will be sent from OAuth callback after authorization');
-    // Don't send WebSocket - will be sent as "user_authorized" after OAuth
-  }
-} else {
-  // Negative response - always send WebSocket nudge
-  const payload = {
-    type: 'decline',
-    userId: trimmedUserId,
-    jobId: trimmedJobId,
-    emailId: trimmedEmailId,
-    responseId: insertResult.insertedId.toString(),
-    message: `User declined application`,
-    companyName: trimmedCompanyName,
-    jobTitle: trimmedJobTitle,
-    timestamp: new Date().toISOString()
-  };
-  
-  console.log('🚀 Sending WebSocket nudge (decline)');
-  broadcastToClients(payload);
-}
-
-await mongoClient.close();
-console.log('✅ MongoDB connection closed');
-
-// Send appropriate HTML response
-if (isPositive) {
-  const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
-  
-  if (isAuthorized) {
-    console.log('✅ User already authorized - showing proceeding page');
-    res.send(getAlreadyAuthorizedHTML(trimmedUserId, trimmedCompanyName, trimmedJobTitle));
-  } else {
-    console.log('❌ User needs authorization - showing auth options');
-    res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
-  }
-} else {
-  console.log('❌ User declined - showing declined page');
-  res.send(getDeclinedHTML());
-}
 function getDeclinedHTML() {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1528,7 +1485,7 @@ function getAuthorizationHTML(userId, jobId, emailId, responseId) {
   }
 
   // Debug info
-  console.log('🔧 Authorization page loaded with:', { userId, jobId, emailId, responseId });
+  console.log('📧 Authorization page loaded with:', { userId, jobId, emailId, responseId });
 </script>
 </body>
 </html>`;
@@ -1980,7 +1937,7 @@ app.get('/auth/google/callback', async (req, res) => {
     
     console.log('🔵 User:', userId);
     
-    // Exchange code for tokens
+    // Exchange code for tokens using fetch
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1990,7 +1947,7 @@ app.get('/auth/google/callback', async (req, res) => {
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
         redirect_uri: process.env.GOOGLE_REDIRECT_URI,
         grant_type: 'authorization_code'
-      })
+      }).toString()
     });
     
     if (!tokenResponse.ok) {
@@ -2056,38 +2013,28 @@ app.get('/auth/google/callback', async (req, res) => {
       { upsert: true }
     );
     
+    // Get the original response data to include company/job info
+    const responseData = await db.collection('user_application_response')
+      .findOne({ _id: new ObjectId(responseId) });
+    
     await mongoClient.close();
     
     console.log('✅ Authorization stored in database with email:', userInfo.email);
     
-    // // Emit WebSocket event
-    // const wsPayload = {
-    //   type: 'user_authorized',
-    //   userId,
-    //   jobId,
-    //   emailId,
-    //   responseId,
-    //   message: 'User has been authorized successfully',
-    //   userEmail: userInfo.email,
-    //   timestamp: new Date().toISOString()
-    // };
-    // Get the original response data to include company/job info
-            const responseData = await db.collection('user_application_response')
-            .findOne({ _id: new ObjectId(responseId) });
-        
-        // Emit WebSocket event
-        const wsPayload = {
-            type: 'user_authorized',
-            userId,
-            jobId,
-            emailId,
-            responseId,
-            message: 'User has been authorized (company email)',
-            userEmail: companyEmail,
-            companyName: responseData?.companyName || 'Unknown Company',
-            jobTitle: responseData?.jobTitle || 'Unknown Position',
-            timestamp: new Date().toISOString()
-        };
+    // Emit WebSocket event
+    const wsPayload = {
+      type: 'user_authorized',
+      userId,
+      jobId,
+      emailId,
+      responseId,
+      message: 'User has been authorized successfully',
+      userEmail: userInfo.email,
+      companyName: responseData?.companyName || 'Unknown Company',
+      jobTitle: responseData?.jobTitle || 'Unknown Position',
+      timestamp: new Date().toISOString()
+    };
+    
     console.log('🚀 Sending WebSocket notification...');
     broadcastToClients(wsPayload);
     
@@ -2109,7 +2056,7 @@ app.get('/auth/google/callback', async (req, res) => {
 app.get('/auth/use-company-email', async (req, res) => {
   const { userId, jobId, emailId, responseId } = req.query;
   
-  console.log('\n🏢 Using company email for user:', userId);
+  console.log('\n🟢 Using company email for user:', userId);
   
   let mongoClient;
   
@@ -2139,6 +2086,10 @@ app.get('/auth/use-company-email', async (req, res) => {
       { upsert: true }
     );
     
+    // Get the original response data to include company/job info
+    const responseData = await db.collection('user_application_response')
+      .findOne({ _id: new ObjectId(responseId) });
+    
     await mongoClient.close();
     
     console.log('✅ Company email authorization stored with email:', companyEmail);
@@ -2152,6 +2103,8 @@ app.get('/auth/use-company-email', async (req, res) => {
       responseId,
       message: 'User has been authorized (company email)',
       userEmail: companyEmail,
+      companyName: responseData?.companyName || 'Unknown Company',
+      jobTitle: responseData?.jobTitle || 'Unknown Position',
       timestamp: new Date().toISOString()
     };
     
@@ -2182,7 +2135,7 @@ async function checkIfUserAuthorized(userId) {
     const db = client.db('olukayode_sage');
     const userAuth = await db.collection('user_gmail_tokens').findOne({ userId });
 
-    // No record at all — unauthorized
+    // No record at all – unauthorized
     if (!userAuth) {
       console.log(`❌ No authorization record for user ${userId}`);
       return false;
@@ -2280,7 +2233,7 @@ server.listen(PORT, async () => {
   console.log(`📍 Port: ${PORT}`);
   console.log(`📧 Email User: ${EMAIL_USER}`);
   console.log(`🗄️ MongoDB: ${process.env.MONGODB_URI ? 'Configured' : 'Missing'}`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 
   // Test connections on startup
   console.log('\n🔗 Testing connections...');
