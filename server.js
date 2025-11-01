@@ -95,14 +95,17 @@ console.log("📧 Password length:", process.env.EMAIL_PASSWORD?.length);
 
 // SMTP Configuration
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: parseInt(process.env.SMTP_PORT) || 465,  // Changed from 587 to 465
+    secure: true,  // Changed to true for port 465
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+    tls: {
+      rejectUnauthorized: false  // Added for compatibility
+    }
+  });
 
 // Test SMTP connection on startup
 transporter.verify((error, success) => {
