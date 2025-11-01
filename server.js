@@ -18,36 +18,19 @@ const wss = new WebSocket.Server({ server });
 
 const clients = new Map(); // userId → ws
 
-wss.on('connection', (ws, req) => {
-    console.log('🔌 WS client connected');
+// ✅ Handle WebSocket upgrade BEFORE middleware
+server.on('upgrade', (request, socket, head) => {
+  console.log('🔄 WebSocket upgrade request received from:', request.headers.origin);
   
-    // Optionally get userId from query (?userId=123)
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const userId = url.searchParams.get('userId');
-    if (userId) {
-      clients.set(userId, ws);
-      console.log(`🆔 Registered client for userId: ${userId}`);
-    }
-  
-    ws.send(JSON.stringify({ message: 'Welcome!' }));
-  
-    ws.on('close', () => {
-      if (userId) clients.delete(userId);
-      console.log(`❌ Client disconnected${userId ? ` (${userId})` : ''}`);
+  try {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
     });
-  });
-
-  
-  const PORT = process.env.PORT || 3000;
-
-  // Enhanced logging middleware
-  app.use((req, res, next) => {
-    console.log(`📨 ${new Date().toISOString()} ${req.method} ${req.url}`);
-    console.log('📋 Query:', req.query);
-    console.log('📦 Body:', req.body);
-    next();
-  });
-  
+  } catch (error) {
+    console.error('❌ WebSocket upgrade error:', error);
+    socket.destroy();
+  }
+});
 
 // ✅ Broadcast function
 function broadcastToClients(payload) {
@@ -129,28 +112,28 @@ wss.on('error', (error) => {
 // ============================================
 app.use(cors());
 
-// // Remove CSP headers
-// app.use((req, res, next) => {
-//   res.removeHeader('Content-Security-Policy');
-//   res.removeHeader('X-Content-Security-Policy');
-//   res.removeHeader('X-WebKit-CSP');
-//   next();
-// });
+// Remove CSP headers
+app.use((req, res, next) => {
+  res.removeHeader('Content-Security-Policy');
+  res.removeHeader('X-Content-Security-Policy');
+  res.removeHeader('X-WebKit-CSP');
+  next();
+});
 
 app.use(express.json());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
-// // Disable CSP for HTML responses
-// app.use((req, res, next) => {
-//   if (req.path.includes('/handle-response') || 
-//       req.path.includes('/test-oauth-flow') || 
-//       req.path.includes('/auth/')) {
-//     return next();
-//   }
-//   helmet()(req, res, next);
-// });
+// Disable CSP for HTML responses
+app.use((req, res, next) => {
+  if (req.path.includes('/handle-response') || 
+      req.path.includes('/test-oauth-flow') || 
+      req.path.includes('/auth/')) {
+    return next();
+  }
+  helmet()(req, res, next);
+});
 
-
+const PORT = process.env.PORT || 3000;
 
 // Enhanced logging middleware
 app.use((req, res, next) => {
@@ -226,6 +209,7 @@ async function testImapConnection() {
     return false;
   }
 }
+
 
 // Test route with environment info
 app.get('/', (req, res) => {
@@ -418,127 +402,127 @@ app.get('/api/user-responses', async (req, res) => {
   }
 });
 
-// Enhanced handle-response
-// app.get('/handle-response', async (req, res) => {
-//   const { 
-//     response, 
-//     emailId, 
-//     jobId, 
-//     userId, 
-//     emailSubject = 'Not provided', 
-//     companyName = 'Unknown Company', 
-//     jobTitle = 'Unknown Position',
-//     applicationStatus = 'pending',
-//     emailDate = new Date().toISOString(),
-//     emailFrom = 'Unknown Sender'
-//   } = req.query;
 
-//   const trimmedUserId = (userId || '').trim();
-//   const trimmedResponse = (response || '').trim();
-//   const trimmedEmailId = (emailId || '').trim();
-//   const trimmedJobId = (jobId || '').trim();
-//   const trimmedEmailSubject = (emailSubject || '').trim();
-//   const trimmedCompanyName = (companyName || '').trim();
-//   const trimmedJobTitle = (jobTitle || '').trim();
+app.get('/handle-response', async (req, res) => {
+  const { 
+    response, 
+    emailId, 
+    jobId, 
+    userId, 
+    emailSubject = 'Not provided', 
+    companyName = 'Unknown Company', 
+    jobTitle = 'Unknown Position',
+    applicationStatus = 'pending',
+    emailDate = new Date().toISOString(),
+    emailFrom = 'Unknown Sender'
+  } = req.query;
 
-//   console.log('\n🎯 HANDLE-RESPONSE CALLED');
-//   console.log('📩 Response:', trimmedResponse, 'User:', trimmedUserId);
+  const trimmedUserId = (userId || '').trim();
+  const trimmedResponse = (response || '').trim();
+  const trimmedEmailId = (emailId || '').trim();
+  const trimmedJobId = (jobId || '').trim();
+  const trimmedEmailSubject = (emailSubject || '').trim();
+  const trimmedCompanyName = (companyName || '').trim();
+  const trimmedJobTitle = (jobTitle || '').trim();
 
-//   if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
-//     console.log('❌ Missing required parameters');
-//     return res.status(400).send('Missing required parameters');
-//   }
+  console.log('\n🎯 HANDLE-RESPONSE CALLED');
+  console.log('📩 Response:', trimmedResponse, 'User:', trimmedUserId);
 
-//   let mongoClient;
+  if (!trimmedResponse || !trimmedEmailId || !trimmedJobId || !trimmedUserId) {
+    console.log('❌ Missing required parameters');
+    return res.status(400).send('Missing required parameters');
+  }
 
-//   try {
-//     console.log('🗄️ Connecting to MongoDB...');
-//     mongoClient = new MongoClient(process.env.MONGODB_URI);
-//     await mongoClient.connect();
-//     console.log('✅ Connected to MongoDB');
+  let mongoClient;
 
-//     const db = mongoClient.db('olukayode_sage');
+  try {
+    console.log('🗄️ Connecting to MongoDB...');
+    mongoClient = new MongoClient(process.env.MONGODB_URI);
+    await mongoClient.connect();
+    console.log('✅ Connected to MongoDB');
 
-//     // Store the response
-//     console.log('💾 Storing response in database...');
-//     const responseData = {
-//       userId: trimmedUserId,
-//       response: trimmedResponse,
-//       emailId: trimmedEmailId,
-//       jobId: trimmedJobId,
-//       emailSubject: trimmedEmailSubject,
-//       companyName: trimmedCompanyName,
-//       jobTitle: trimmedJobTitle,
-//       applicationStatus: applicationStatus,
-//       emailDate: emailDate,
-//       emailFrom: emailFrom,
-//       timestamp: new Date(),
-//       processed: false
-//     };
+    const db = mongoClient.db('olukayode_sage');
 
-//     const insertResult = await db.collection('user_application_response').insertOne(responseData);
-//     console.log('✅ Response stored with ID:', insertResult.insertedId);
+    // Store the response
+    console.log('💾 Storing response in database...');
+    const responseData = {
+      userId: trimmedUserId,
+      response: trimmedResponse,
+      emailId: trimmedEmailId,
+      jobId: trimmedJobId,
+      emailSubject: trimmedEmailSubject,
+      companyName: trimmedCompanyName,
+      jobTitle: trimmedJobTitle,
+      applicationStatus: applicationStatus,
+      emailDate: emailDate,
+      emailFrom: emailFrom,
+      timestamp: new Date(),
+      processed: false
+    };
 
-//     // Determine response type
-//     const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
-//     const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
+    const insertResult = await db.collection('user_application_response').insertOne(responseData);
+    console.log('✅ Response stored with ID:', insertResult.insertedId);
+
+    // Determine response type
+    const positiveKeywords = ["proceed", "okay", "yes", "ok", "continue", "thank you", "sure", "please do"];
+    const isPositive = positiveKeywords.some(keyword => trimmedResponse.toLowerCase().includes(keyword));
     
-//     // WebSocket notification
-//     const payload = {
-//       type: trimmedResponse.toLowerCase(),
-//       userId: trimmedUserId,
-//       jobId: trimmedJobId,
-//       emailId: trimmedEmailId,
-//       responseId: insertResult.insertedId.toString(),
-//       message: `User selected "${trimmedResponse}"`,
-//       companyName: trimmedCompanyName,
-//       jobTitle: trimmedJobTitle,
-//       timestamp: new Date().toISOString()
-//     };
+    // WebSocket notification
+    const payload = {
+      type: trimmedResponse.toLowerCase(),
+      userId: trimmedUserId,
+      jobId: trimmedJobId,
+      emailId: trimmedEmailId,
+      responseId: insertResult.insertedId.toString(),
+      message: `User selected "${trimmedResponse}"`,
+      companyName: trimmedCompanyName,
+      jobTitle: trimmedJobTitle,
+      timestamp: new Date().toISOString()
+    };
 
-//     console.log('🚀 Sending WebSocket notification...');
-//     broadcastToClients(payload);
+    console.log('🚀 Sending WebSocket notification...');
+    broadcastToClients(payload);
 
-//     await mongoClient.close();
-//     console.log('✅ MongoDB connection closed');
+    await mongoClient.close();
+    console.log('✅ MongoDB connection closed');
 
-//     // Send appropriate HTML response
-//     if (isPositive) {
-//       // Check if user is already authorized
-//       const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
+    // Send appropriate HTML response
+    if (isPositive) {
+      // Check if user is already authorized
+      const isAuthorized = await checkIfUserAuthorized(trimmedUserId);
       
-//       if (isAuthorized) {
-//         console.log('✅ User already authorized - showing proceeding page');
-//         res.send(getAlreadyAuthorizedHTML(trimmedUserId, trimmedCompanyName, trimmedJobTitle));
-//       } else {
-//         console.log('❌ User needs authorization - showing auth options');
-//         res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
-//       }
-//     } else {
-//       // Negative response
-//       console.log('❌ User declined - showing declined page');
-//       res.send(getDeclinedHTML());
-//     }
+      if (isAuthorized) {
+        console.log('✅ User already authorized - showing proceeding page');
+        res.send(getAlreadyAuthorizedHTML(trimmedUserId, trimmedCompanyName, trimmedJobTitle));
+      } else {
+        console.log('❌ User needs authorization - showing auth options');
+        res.send(getAuthorizationHTML(trimmedUserId, trimmedJobId, trimmedEmailId, insertResult.insertedId));
+      }
+    } else {
+      // Negative response
+      console.log('❌ User declined - showing declined page');
+      res.send(getDeclinedHTML());
+    }
     
-//   } catch (err) {
-//     console.error('❌ ERROR in handle-response:', err);
-//     console.error('❌ Error stack:', err.stack);
+  } catch (err) {
+    console.error('❌ ERROR in handle-response:', err);
+    console.error('❌ Error stack:', err.stack);
     
-//     if (mongoClient) {
-//       await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
-//     }
+    if (mongoClient) {
+      await mongoClient.close().catch(e => console.error('Error closing MongoDB:', e));
+    }
     
-//     res.status(500).send(
-//       `<html>
-//         <body>
-//           <h1>Server Error</h1>
-//           <p>Please try again later. If the problem persists, contact support.</p>
-//           <p><small>Error: ${err.message}</small></p>
-//         </body>
-//       </html>`
-//     );
-//   }
-// });
+    res.status(500).send(
+      `<html>
+        <body>
+          <h1>Server Error</h1>
+          <p>Please try again later. If the problem persists, contact support.</p>
+          <p><small>Error: ${err.message}</small></p>
+        </body>
+      </html>`
+    );
+  }
+});
 ///////////////////////////////////////////////////////////////////
 // Determine response type
 // Determine response type
