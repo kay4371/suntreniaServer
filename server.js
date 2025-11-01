@@ -1,3 +1,86 @@
+// const WebSocket = require('ws');
+// const express = require('express');
+// const { MongoClient, ObjectId } = require('mongodb');
+// const dotenv = require('dotenv').config();
+// const cors = require('cors');
+// const helmet = require('helmet');
+// const rateLimit = require('express-rate-limit');
+// const imaps = require('imap-simple');
+// const { simpleParser } = require('mailparser');
+// const nodemailer = require('nodemailer');
+// const http = require('http');
+
+// const app = express();
+// const server = http.createServer(app);
+// const wss = new WebSocket.Server({ server });
+
+// const clients = new Map(); // userId → ws
+
+// // ADD THIS RIGHT HERE - BEFORE ANY OTHER MIDDLEWARE
+// // Middleware
+// app.use(cors());
+
+// // Remove CSP headers
+// app.use((req, res, next) => {
+//   res.removeHeader('Content-Security-Policy');
+//   res.removeHeader('X-Content-Security-Policy');
+//   res.removeHeader('X-WebKit-CSP');
+//   next();
+// });
+
+// app.use(express.json());
+// app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+
+
+// function broadcastToClients(payload) {
+//   console.log('📢 Broadcasting WebSocket message:', payload);
+//   console.log(`📊 Total clients to broadcast to: ${wss.clients.size}`);
+  
+//   let sentCount = 0;
+  
+//   wss.clients.forEach((client, index) => {
+//     console.log(`🔍 Client ${index + 1}:`, {
+//       readyState: client.readyState,
+//       WebSocket: {
+//         OPEN: WebSocket.OPEN,
+//         CONNECTING: WebSocket.CONNECTING,
+//         CLOSING: WebSocket.CLOSING,
+//         CLOSED: WebSocket.CLOSED
+//       }
+//     });
+    
+//     if (client.readyState === WebSocket.OPEN) {
+//       client.send(JSON.stringify(payload));
+//       sentCount++;
+//       console.log(`✅ Message sent to client ${index + 1}`);
+//     } else {
+//       console.log(`❌ Client ${index + 1} not ready (state: ${client.readyState})`);
+//     }
+//   });
+  
+//   console.log(`📨 Successfully sent to ${sentCount} out of ${wss.clients.size} clients`);
+// }
+
+// wss.on('connection', (ws, req) => {
+//   console.log('🔌 WS client connected');
+
+//   // Optionally get userId from query (?userId=123)
+//   const url = new URL(req.url, `http://${req.headers.host}`);
+//   const userId = url.searchParams.get('userId');
+//   if (userId) {
+//     clients.set(userId, ws);
+//     console.log(`🆔 Registered client for userId: ${userId}`);
+//   }
+
+//   ws.send(JSON.stringify({ message: 'Welcome!' }));
+
+//   ws.on('close', () => {
+//     if (userId) clients.delete(userId);
+//     console.log(`❌ Client disconnected${userId ? ` (${userId})` : ''}`);
+//   });
+// });
+
+
 const WebSocket = require('ws');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
@@ -12,12 +95,104 @@ const http = require('http');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+
+// ✅ WebSocket server with noServer option
+const wss = new WebSocket.Server({ noServer: true });
 
 const clients = new Map(); // userId → ws
 
-// ADD THIS RIGHT HERE - BEFORE ANY OTHER MIDDLEWARE
-// Middleware
+// ✅ Handle WebSocket upgrade BEFORE middleware
+server.on('upgrade', (request, socket, head) => {
+  console.log('🔄 WebSocket upgrade request received from:', request.headers.origin);
+  
+  try {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } catch (error) {
+    console.error('❌ WebSocket upgrade error:', error);
+    socket.destroy();
+  }
+});
+
+// ✅ Broadcast function
+function broadcastToClients(payload) {
+  console.log('📢 Broadcasting WebSocket message:', payload);
+  console.log(`📊 Total clients to broadcast to: ${wss.clients.size}`);
+  
+  let sentCount = 0;
+  
+  wss.clients.forEach((client, index) => {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(JSON.stringify(payload));
+        sentCount++;
+        console.log(`✅ Message sent to client ${index + 1}`);
+      } catch (error) {
+        console.error(`❌ Error sending to client ${index + 1}:`, error.message);
+      }
+    } else {
+      console.log(`❌ Client ${index + 1} not ready (state: ${client.readyState})`);
+    }
+  });
+  
+  console.log(`📨 Successfully sent to ${sentCount} out of ${wss.clients.size} clients`);
+}
+
+// ✅ WebSocket connection handler
+wss.on('connection', (ws, req) => {
+  console.log('🔌 WS client connected');
+
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const userId = url.searchParams.get('userId');
+    
+    if (userId) {
+      clients.set(userId, ws);
+      console.log(`🆔 Registered client for userId: ${userId}`);
+    }
+
+    // Send welcome message
+    ws.send(JSON.stringify({ 
+      type: 'connection',
+      message: 'WebSocket connected successfully!',
+      timestamp: new Date().toISOString()
+    }));
+
+    // Handle incoming messages
+    ws.on('message', (message) => {
+      try {
+        console.log('📨 Received message from client:', message.toString());
+      } catch (error) {
+        console.error('❌ Error processing message:', error);
+      }
+    });
+
+    // Handle errors
+    ws.on('error', (error) => {
+      console.error('❌ WebSocket error:', error.message);
+    });
+
+    // Handle disconnection
+    ws.on('close', () => {
+      if (userId) clients.delete(userId);
+      console.log(`❌ Client disconnected${userId ? ` (${userId})` : ''}`);
+    });
+
+  } catch (error) {
+    console.error('❌ Error in WebSocket connection handler:', error);
+    ws.close();
+  }
+});
+
+// Log WebSocket server errors
+wss.on('error', (error) => {
+  console.error('❌ WebSocket server error:', error);
+});
+
+// ============================================
+// MIDDLEWARE SETUP (ONLY ONCE!)
+// ============================================
 app.use(cors());
 
 // Remove CSP headers
@@ -31,53 +206,14 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
-
-function broadcastToClients(payload) {
-  console.log('📢 Broadcasting WebSocket message:', payload);
-  console.log(`📊 Total clients to broadcast to: ${wss.clients.size}`);
-  
-  let sentCount = 0;
-  
-  wss.clients.forEach((client, index) => {
-    console.log(`🔍 Client ${index + 1}:`, {
-      readyState: client.readyState,
-      WebSocket: {
-        OPEN: WebSocket.OPEN,
-        CONNECTING: WebSocket.CONNECTING,
-        CLOSING: WebSocket.CLOSING,
-        CLOSED: WebSocket.CLOSED
-      }
-    });
-    
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(payload));
-      sentCount++;
-      console.log(`✅ Message sent to client ${index + 1}`);
-    } else {
-      console.log(`❌ Client ${index + 1} not ready (state: ${client.readyState})`);
-    }
-  });
-  
-  console.log(`📨 Successfully sent to ${sentCount} out of ${wss.clients.size} clients`);
-}
-
-wss.on('connection', (ws, req) => {
-  console.log('🔌 WS client connected');
-
-  // Optionally get userId from query (?userId=123)
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const userId = url.searchParams.get('userId');
-  if (userId) {
-    clients.set(userId, ws);
-    console.log(`🆔 Registered client for userId: ${userId}`);
+// Disable CSP for HTML responses
+app.use((req, res, next) => {
+  if (req.path.includes('/handle-response') || 
+      req.path.includes('/test-oauth-flow') || 
+      req.path.includes('/auth/')) {
+    return next();
   }
-
-  ws.send(JSON.stringify({ message: 'Welcome!' }));
-
-  ws.on('close', () => {
-    if (userId) clients.delete(userId);
-    console.log(`❌ Client disconnected${userId ? ` (${userId})` : ''}`);
-  });
+  helmet()(req, res, next);
 });
 
 const PORT = process.env.PORT || 3000;
@@ -93,30 +229,35 @@ app.use((req, res, next) => {
 console.log("📧 Email User:", process.env.EMAIL_USER);
 console.log("📧 Password length:", process.env.EMAIL_PASSWORD?.length);
 
+// ============================================
 // SMTP Configuration
+// ============================================
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT) || 465,  // Changed from 587 to 465
-    secure: true,  // Changed to true for port 465
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-    tls: {
-      rejectUnauthorized: false  // Added for compatibility
-    }
-  });
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: parseInt(process.env.SMTP_PORT) || 465,
+  secure: true,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
 
-// Test SMTP connection on startup
+// Test SMTP connection on startup (non-blocking)
 transporter.verify((error, success) => {
   if (error) {
-    console.error('❌ SMTP Connection Failed:', error);
+    console.error('❌ SMTP Connection Failed:', error.message);
+    console.log('⚠️ Email sending may not work. Please check SMTP settings.');
   } else {
     console.log('✅ SMTP Server is ready to take messages');
   }
 });
 
+// ============================================
 // IMAP Configuration
+// ============================================
 const imapConfig = {
   imap: {
     user: process.env.EMAIL_USER,
@@ -144,16 +285,6 @@ async function testImapConnection() {
 
 // Middleware
 app.use(cors());
-// NEW (allows inline scripts):
-// app.use(helmet({
-//     contentSecurityPolicy: {
-//       directives: {
-//         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-//         "script-src": ["'self'", "'unsafe-inline'"],
-//         "script-src-attr": ["'unsafe-inline'"],
-//       },
-//     },
-//   }));
 
 // Better approach - disable CSP for HTML responses only
 app.use((req, res, next) => {
@@ -327,11 +458,6 @@ app.get('/env-check', (req, res) => {
       timestamp: new Date().toISOString()
     });
   });
-
-
-
-
-
 // NEW ENDPOINT: Get all user responses
 app.get('/api/user-responses', async (req, res) => {
   const { userId } = req.query;
