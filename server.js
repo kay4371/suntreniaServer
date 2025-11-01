@@ -1,14 +1,28 @@
-const WebSocket = require('ws');
-const express = require('express');
-const { MongoClient, ObjectId } = require('mongodb');
-const dotenv = require('dotenv').config();
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const imaps = require('imap-simple');
-const { simpleParser } = require('mailparser');
-const nodemailer = require('nodemailer');
-const http = require('http');
+import WebSocket from 'ws';
+import express from 'express';
+import { MongoClient, ObjectId } from 'mongodb';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import imaps from 'imap-simple';
+import { simpleParser } from 'mailparser';
+import nodemailer from 'nodemailer';
+import http from 'http';
+
+dotenv.config();
+
+// const WebSocket = require('ws');
+// const express = require('express');
+// const { MongoClient, ObjectId } = require('mongodb');
+// const dotenv = require('dotenv').config();
+// const cors = require('cors');
+// const helmet = require('helmet');
+// const rateLimit = require('express-rate-limit');
+// const imaps = require('imap-simple');
+// const { simpleParser } = require('mailparser');
+// const nodemailer = require('nodemailer');
+// const http = require('http');
 
 const app = express();
 const server = http.createServer(app);
