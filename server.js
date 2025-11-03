@@ -13,26 +13,37 @@ const http = require('http');
 const app = express();
 const server = http.createServer(app);
 
-// ✅ WebSocket server with noServer option
-const wss = new WebSocket.Server({ server });
+// ============================================
+// FIX #1: Trust Proxy (for Render/Heroku)
+// ============================================
+app.set('trust proxy', 1);
+
+// ============================================
+// FIX #2: WebSocket Server Setup
+// ============================================
+const wss = new WebSocket.Server({ noServer: true });
 
 const clients = new Map(); // userId → ws
 
-// ✅ Handle WebSocket upgrade BEFORE middleware
+// ============================================
+// FIX #3: Single Upgrade Handler
+// ============================================
 server.on('upgrade', (request, socket, head) => {
-  console.log('🔄 WebSocket upgrade request received from:', request.headers.origin);
+  console.log('🔄 WebSocket upgrade request from:', request.headers.origin || 'unknown');
   
-  try {
+  // Parse URL to check if it's a WebSocket request
+  const pathname = new URL(request.url, 'http://localhost').pathname;
+  
+  if (pathname === '/ws' || request.headers.upgrade?.toLowerCase() === 'websocket') {
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit('connection', ws, request);
     });
-  } catch (error) {
-    console.error('❌ WebSocket upgrade error:', error);
+  } else {
     socket.destroy();
   }
 });
 
-// ✅ Broadcast function
+// Broadcast function
 function broadcastToClients(payload) {
   console.log('📢 Broadcasting WebSocket message:', payload);
   console.log(`📊 Total clients to broadcast to: ${wss.clients.size}`);
@@ -49,24 +60,33 @@ function broadcastToClients(payload) {
         console.error(`❌ Error sending to client ${index + 1}:`, error.message);
       }
     } else {
-      console.log(`❌ Client ${index + 1} not ready (state: ${client.readyState})`);
+      console.log(`⏸️ Client ${index + 1} not ready (state: ${client.readyState})`);
     }
   });
   
   console.log(`📨 Successfully sent to ${sentCount} out of ${wss.clients.size} clients`);
+  return sentCount;
 }
 
-// ✅ WebSocket connection handler
+// WebSocket connection handler
 wss.on('connection', (ws, req) => {
   console.log('🔌 WS client connected');
-
+  
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const userId = url.searchParams.get('userId');
     
     if (userId) {
+      // Remove old connection if exists
+      const oldWs = clients.get(userId);
+      if (oldWs && oldWs !== ws && oldWs.readyState === WebSocket.OPEN) {
+        console.log(`🔄 Replacing existing connection for userId: ${userId}`);
+        oldWs.close();
+      }
+      
       clients.set(userId, ws);
       console.log(`🆔 Registered client for userId: ${userId}`);
+      console.log(`👥 Total registered clients: ${clients.size}`);
     }
 
     // Send welcome message
@@ -75,6 +95,17 @@ wss.on('connection', (ws, req) => {
       message: 'WebSocket connected successfully!',
       timestamp: new Date().toISOString()
     }));
+
+    // Ping-pong to keep connection alive
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.ping();
+      }
+    }, 30000); // Every 30 seconds
+
+    ws.on('pong', () => {
+      console.log('🏓 Pong received from client');
+    });
 
     // Handle incoming messages
     ws.on('message', (message) => {
@@ -92,8 +123,13 @@ wss.on('connection', (ws, req) => {
 
     // Handle disconnection
     ws.on('close', () => {
-      if (userId) clients.delete(userId);
-      console.log(`❌ Client disconnected${userId ? ` (${userId})` : ''}`);
+      clearInterval(pingInterval);
+      if (userId) {
+        clients.delete(userId);
+        console.log(`❌ Client disconnected (${userId}). Remaining: ${clients.size}`);
+      } else {
+        console.log(`❌ Client disconnected (no userId). Remaining: ${wss.clients.size}`);
+      }
     });
 
   } catch (error) {
@@ -108,11 +144,11 @@ wss.on('error', (error) => {
 });
 
 // ============================================
-// MIDDLEWARE SETUP (ONLY ONCE!)
+// MIDDLEWARE SETUP
 // ============================================
 app.use(cors());
 
-// Remove CSP headers
+// Remove CSP headers for OAuth routes
 app.use((req, res, next) => {
   res.removeHeader('Content-Security-Policy');
   res.removeHeader('X-Content-Security-Policy');
@@ -121,9 +157,16 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
-// Disable CSP for HTML responses
+// FIX #4: Rate Limit with Proxy Trust
+app.use(rateLimit({ 
+  windowMs: 15 * 60 * 1000, 
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false
+}));
+
+// Disable CSP for specific routes
 app.use((req, res, next) => {
   if (req.path.includes('/handle-response') || 
       req.path.includes('/test-oauth-flow') || 
@@ -139,11 +182,13 @@ const PORT = process.env.PORT || 3000;
 app.use((req, res, next) => {
   console.log(`📨 ${new Date().toISOString()} ${req.method} ${req.url}`);
   console.log('📋 Query:', req.query);
-  console.log('📦 Body:', req.body);
+  if (req.method === 'POST') {
+    console.log('📦 Body:', req.body);
+  }
   next();
 });
 
-// ✅ FIX: Use correct environment variable names
+// Environment variables
 const EMAIL_USER = process.env.SMTP_USER || process.env.EMAIL_USER;
 const EMAIL_PASSWORD = process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD;
 
@@ -151,12 +196,12 @@ console.log("📧 Email User:", EMAIL_USER);
 console.log("📧 Password length:", EMAIL_PASSWORD?.length);
 
 // ============================================
-// SMTP Configuration - FIXED
+// FIX #5: SMTP Configuration - Use Port 465
 // ============================================
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT) || 465,
-  secure: true,
+  port: 465, // Changed from 587 to 465
+  secure: true, // Use SSL
   auth: {
     user: EMAIL_USER,
     pass: EMAIL_PASSWORD,
@@ -172,8 +217,8 @@ transporter.verify((error, success) => {
     console.error('❌ SMTP Connection Failed:', error.message);
     console.log('⚠️ Email sending may not work. Please check SMTP settings.');
     console.log('📋 Current SMTP Config:', {
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: 465,
       user: EMAIL_USER,
       hasPassword: !!EMAIL_PASSWORD
     });
@@ -183,7 +228,7 @@ transporter.verify((error, success) => {
 });
 
 // ============================================
-// IMAP Configuration - FIXED
+// IMAP Configuration
 // ============================================
 const imapConfig = {
   imap: {
@@ -210,14 +255,19 @@ async function testImapConnection() {
   }
 }
 
-// Test route with environment info
+// ============================================
+// ROUTES
+// ============================================
+
+// Test route
 app.get('/', (req, res) => {
   const envInfo = {
     email_user: EMAIL_USER ? 'Set' : 'Missing',
     mongodb_uri: process.env.MONGODB_URI ? 'Set' : 'Missing',
     node_env: process.env.NODE_ENV || 'development',
     smtp_host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    smtp_port: process.env.SMTP_PORT || '465'
+    smtp_port: 465,
+    websocket_clients: wss.clients.size
   };
 
   res.json({
@@ -227,6 +277,43 @@ app.get('/', (req, res) => {
   });
 });
 
+// WebSocket status endpoint
+app.get('/ws-status', (req, res) => {
+  const clientsInfo = Array.from(clients.entries()).map(([userId, ws]) => ({
+    userId,
+    state: ws.readyState,
+    stateText: ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][ws.readyState]
+  }));
+
+  res.json({
+    totalClients: wss.clients.size,
+    registeredClients: clients.size,
+    clients: clientsInfo,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Test WebSocket broadcast
+app.get('/test-websocket', (req, res) => {
+  const { userId, message } = req.query;
+  
+  const testPayload = {
+    type: 'test_message',
+    userId: userId || 'test-user',
+    message: message || 'Test WebSocket message',
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🧪 Sending test WebSocket message...');
+  const sentCount = broadcastToClients(testPayload);
+  
+  res.json({
+    success: true,
+    message: 'Test WebSocket message sent',
+    sentToClients: sentCount,
+    payload: testPayload
+  });
+});
 app.get('/test-oauth', (req, res) => {
   const oauthConfig = {
     hasClientId: !!process.env.GOOGLE_CLIENT_ID,
@@ -292,7 +379,6 @@ app.get('/test-oauth-flow', (req, res) => {
     </html>
   `);
 });
-
 app.get('/debug-oauth', (req, res) => {
   const debugInfo = {
     server: {
@@ -339,7 +425,6 @@ app.get('/env-check', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
 // NEW ENDPOINT: Get all user responses
 app.get('/api/user-responses', async (req, res) => {
   const { userId } = req.query;
@@ -2050,7 +2135,6 @@ const wsPayload = {
     res.status(500).send('Authorization failed. Please try again.');
   }
 });
-
 app.get('/auth/use-company-email', async (req, res) => {
   const { userId, jobId, emailId, responseId } = req.query;
   
@@ -2170,6 +2254,7 @@ async function checkIfUserAuthorized(userId) {
   }
 }
 
+
 app.get('/check-user-auth', async (req, res) => {
   const { userId } = req.query;
   
@@ -2205,33 +2290,20 @@ app.get('/check-user-auth', async (req, res) => {
   }
 });
 
-app.get('/test-websocket', (req, res) => {
-  const { userId, message } = req.query;
-  
-  const testPayload = {
-    type: 'test_message',
-    userId: userId || 'test-user',
-    message: message || 'Test WebSocket message',
-    timestamp: new Date().toISOString()
-  };
-  
-  console.log('🧪 Sending test WebSocket message...');
-  broadcastToClients(testPayload);
-  
-  res.json({
-    success: true,
-    message: 'Test WebSocket message sent',
-    payload: testPayload
-  });
-});
+// ... [Keep all your existing routes: /test-oauth, /debug-oauth, /env-check, etc.]
+// ... [Keep all your existing endpoints: /api/user-responses, /handle-response, etc.]
+// ... [Keep all your existing auth routes: /auth/google, /auth/google/callback, etc.]
+
+// Add your existing routes here (I'm keeping them as-is since the main fixes are above)
 
 // Server startup with comprehensive logging
 server.listen(PORT, async () => {
   console.log(`\n🚀 Server starting...`);
-  console.log(`📍 Port: ${PORT}`);
+  console.log(`🔌 Port: ${PORT}`);
   console.log(`📧 Email User: ${EMAIL_USER}`);
   console.log(`🗄️ MongoDB: ${process.env.MONGODB_URI ? 'Configured' : 'Missing'}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔒 Trust Proxy: ${app.get('trust proxy')}`);
 
   // Test connections on startup
   console.log('\n🔗 Testing connections...');
@@ -2239,4 +2311,5 @@ server.listen(PORT, async () => {
 
   console.log(`\n✅ Server running on http://localhost:${PORT}`);
   console.log('📊 Logs available in Render Dashboard → Your Service → Logs');
+  console.log('🔌 WebSocket endpoint: ws://localhost:${PORT}/ws');
 });
