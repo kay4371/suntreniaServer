@@ -2115,7 +2115,7 @@ const wsPayload = {
   emailId,
   responseId,
   message: 'User has been authorized (company email)',
-  userEmail: companyEmail,
+  userEmail: userInfo.email,
   companyName: responseData?.companyName || 'Unknown Company',
   jobTitle: responseData?.jobTitle || 'Unknown Position',
   timestamp: new Date().toISOString()
@@ -2157,7 +2157,7 @@ app.get('/auth/use-company-email', async (req, res) => {
     // Store authorization (company email mode) with email
     const authData = {
       usePersonalEmail: false,
-      userEmail: companyEmail,
+      userEmail: userInfo.email,
       updatedAt: new Date(),
       authorizedAt: new Date(),
       isAuthorized: true
@@ -2177,7 +2177,7 @@ app.get('/auth/use-company-email', async (req, res) => {
     
     await mongoClient.close();
     
-    console.log('✅ Company email authorization stored with email:', companyEmail);
+    console.log('✅ Company email authorization stored with email:', userInfo.email);
     
     // Emit WebSocket event
     const wsPayload = {
