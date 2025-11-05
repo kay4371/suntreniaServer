@@ -1990,6 +1990,9 @@ app.get('/auth/fallback', (req, res) => {
   `);
 });
 
+
+
+
 app.get('/auth/google/callback', async (req, res) => {
   console.log('\n🔵 ============ OAUTH CALLBACK HIT ============');
   const { code, state, error } = req.query;
@@ -2183,8 +2186,8 @@ app.get('/auth/use-company-email', async (req, res) => {
       jobId,
       emailId,
       responseId,
-      message: 'User has been authorized (company email)',
-      userEmail: companyEmail,
+      message: 'User has been authorized (personal Gmail)', // ✅ Change this
+      userEmail: userInfo.email,
       companyName: responseData?.companyName || 'Unknown Company',
       jobTitle: responseData?.jobTitle || 'Unknown Position',
       timestamp: new Date().toISOString()
@@ -2192,7 +2195,7 @@ app.get('/auth/use-company-email', async (req, res) => {
     
     console.log('🚀 Sending WebSocket notification...');
     broadcastToClients(wsPayload);
-    
+    await mongoClient.close();
     // Show success page
     res.send(getSuccessHTML());
     
